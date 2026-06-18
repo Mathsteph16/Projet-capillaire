@@ -32,11 +32,8 @@ export default function Inscription() {
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-4">
-      <form
-        onSubmit={handleSignUp}
-        className="w-full max-w-sm space-y-4"
-      >
-        <h1 className="text-2xl font-semibold text-zinc-50">Inscription</h1>
+      <form onSubmit={handleSignUp} className="w-full max-w-sm space-y-4">
+        <h1 className="text-2xl font-semibold text-foreground">Inscription</h1>
 
         <input
           type="email"
@@ -44,7 +41,7 @@ export default function Inscription() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+          className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-foreground placeholder:text-muted focus:border-accent focus:outline-none"
         />
         <input
           type="password"
@@ -53,24 +50,22 @@ export default function Inscription() {
           onChange={(e) => setPassword(e.target.value)}
           required
           minLength={6}
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+          className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-foreground placeholder:text-muted focus:border-accent focus:outline-none"
         />
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-zinc-50 py-3 font-medium text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-50"
+          className="w-full rounded-lg bg-accent py-3 font-medium text-background transition-colors hover:bg-accent-hover disabled:opacity-50"
         >
           {loading ? "Envoi…" : "Créer mon compte"}
         </button>
 
-        {message && (
-          <p className="text-sm text-zinc-400">{message}</p>
-        )}
+        {message && <p className="text-sm text-signal">{message}</p>}
 
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-muted">
           Déjà inscrit ?{" "}
-          <Link href="/connexion" className="text-zinc-50 hover:underline">
+          <Link href="/connexion" className="text-accent hover:underline">
             Se connecter
           </Link>
         </p>
