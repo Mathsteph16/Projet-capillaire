@@ -1,220 +1,161 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { RadioCard, ProgressBar, Button } from "@/components/ui";
 import { trackEvent } from "@/lib/track";
+import AuthForm from "@/components/auth-form";
 
-interface Step {
+interface QuizStep {
   question: string;
-  subtitle: string;
   key: string;
-  options: { label: string; value: string }[];
+  options: string[];
+  feedback: string;
 }
 
-const STEPS: Step[] = [
+const QUIZ: QuizStep[] = [
   {
-    question: "Depuis quand remarques-tu une perte ?",
-    subtitle: "Pas de jugement — chaque parcours est différent.",
-    key: "duration",
-    options: [
-      { label: "Moins d'un an", value: "less_1y" },
-      { label: "1 à 3 ans", value: "1_3y" },
-      { label: "Plus de 3 ans", value: "more_3y" },
-    ],
+    question: "Depuis combien de temps tu remarques un changement ?",
+    key: "duree",
+    options: ["Moins d'un an", "1 à 3 ans", "Plus de 3 ans", "Je ne suis pas sûr"],
+    feedback: "Noté. Plus tu agis tôt, plus c'est simple de suivre l'évolution.",
   },
   {
     question: "Quelle zone t'inquiète le plus ?",
-    subtitle: "On analysera cette zone en priorité.",
     key: "zone",
-    options: [
-      { label: "Les golfes", value: "golfes" },
-      { label: "Le dessus du crâne", value: "vertex" },
-      { label: "La ligne frontale", value: "frontale" },
-      { label: "Un peu partout", value: "general" },
-    ],
+    options: ["Les golfes", "Le dessus du crâne", "La ligne frontale", "Un peu partout"],
+    feedback: "OK. Ton scan va justement cartographier cette zone précisément.",
   },
   {
-    question: "As-tu déjà essayé un traitement ?",
-    subtitle: "Ça nous aide à adapter nos recommandations.",
-    key: "treatment",
-    options: [
-      { label: "Non, jamais", value: "no" },
-      { label: "Oui, sans résultat", value: "yes_no_result" },
-      { label: "Oui, avec des résultats", value: "yes_with_result" },
-    ],
+    question: "Comment tu le vis au quotidien ?",
+    key: "vecu",
+    options: ["Ça me préoccupe souvent", "De temps en temps", "Je veux surtout anticiper"],
+    feedback: "Tu fais bien d'en avoir le coeur net. On va te donner des repères clairs.",
   },
   {
-    question: "Ton objectif principal ?",
-    subtitle: "Il n'y a pas de mauvaise réponse.",
-    key: "goal",
-    options: [
-      { label: "Stopper la chute", value: "stop" },
-      { label: "Faire repousser", value: "regrow" },
-      { label: "Juste comprendre où j'en suis", value: "understand" },
-    ],
+    question: "Tu as déjà essayé quelque chose ?",
+    key: "deja_essaye",
+    options: ["Non, jamais", "Oui, sans vrai résultat", "Oui, avec un peu de résultat"],
+    feedback: "Compris. On va partir de là où tu en es, sans repartir de zéro.",
+  },
+  {
+    question: "C'est quoi ton objectif principal ?",
+    key: "objectif",
+    options: ["Stopper la chute", "Densifier", "Comprendre où j'en suis et suivre"],
+    feedback: "Clair. Tout ton bilan va être orienté vers ça.",
   },
 ];
 
-const TOTAL = STEPS.length + 1;
+const TOTAL_SCREENS = QUIZ.length + 1;
 
 export default function Onboarding() {
-  const [current, setCurrent] = useState(0);
+  const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [showFeedback, setShowFeedback] = useState(false);
   const [direction, setDirection] = useState<"next" | "prev">("next");
-  const [saving, setSaving] = useState(false);
-  const [ready, setReady] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { setReady(true); return; }
-      const { data } = await supabase
-        .from("onboarding")
-        .select("id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle();
-      if (data) {
-        router.replace("/scan");
-      } else {
-        setReady(true);
-      }
-    });
-  }, [router]);
+  const progress = ((step + 1) / TOTAL_SCREENS) * 100;
+  const isSignup = step >= QUIZ.length;
 
-  const progress = ((current + 1) / TOTAL) * 100;
-
-  if (!ready) {
-    return (
-      <main className="flex flex-1 flex-col items-center justify-center px-4">
-        <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-      </main>
-    );
-  }
+  const saveToServer = useCallback(async (data: Record<string, string>, currentStep: number) => {
+    try {
+      await fetch("/api/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers: data, step: currentStep }),
+      });
+    } catch {
+      // non-blocking
+    }
+  }, []);
 
   const selectOption = useCallback(
     (key: string, value: string) => {
-      setAnswers((prev) => ({ ...prev, [key]: value }));
-      setDirection("next");
-      setTimeout(() => setCurrent((c) => c + 1), 200);
+      const updated = { ...answers, [key]: value };
+      setAnswers(updated);
+      setShowFeedback(true);
+
+      saveToServer(updated, step);
+
+      setTimeout(() => {
+        setShowFeedback(false);
+        setDirection("next");
+        setStep((s) => s + 1);
+      }, 1200);
     },
-    []
+    [answers, step, saveToServer]
   );
 
   const goBack = useCallback(() => {
-    if (current > 0) {
+    if (step > 0) {
+      setShowFeedback(false);
       setDirection("prev");
-      setCurrent((c) => c - 1);
+      setStep((s) => s - 1);
     }
-  }, [current]);
+  }, [step]);
 
-  async function handleFinish() {
-    setSaving(true);
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user) {
-      await supabase.from("onboarding").upsert(
-        {
-          user_id: user.id,
-          duration: answers.duration,
-          zone: answers.zone,
-          treatment: answers.treatment,
-          goal: answers.goal,
-        },
-        { onConflict: "user_id" }
-      );
-    }
-
-    trackEvent("onboarding_complete");
+  const handleAuthSuccess = useCallback(async () => {
+    trackEvent("onboarding_completed");
     router.push("/scan");
-  }
-
-  const isFinal = current >= STEPS.length;
+  }, [router]);
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-4">
+    <main className="flex flex-1 flex-col items-center justify-center px-5 py-8">
       <div className="w-full max-w-md">
-        {/* Progress bar */}
-        <div className="mb-8">
-          <div className="h-1 w-full rounded-full bg-border">
-            <div
-              className="h-1 rounded-full bg-accent transition-all duration-500 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="mt-2 text-xs text-muted">
-            {current + 1} / {TOTAL}
-          </p>
-        </div>
+        <ProgressBar value={progress} className="mb-2" />
+        <p className="mb-8 text-xs text-text-faint">
+          {step + 1} / {TOTAL_SCREENS}
+        </p>
 
-        {/* Content */}
         <div
-          key={current}
-          className={`animate-fade-in ${
-            direction === "next" ? "animate-slide-left" : "animate-slide-right"
-          }`}
+          key={step}
+          className={direction === "next" ? "animate-slide-left" : "animate-slide-right"}
         >
-          {!isFinal ? (
+          {!isSignup ? (
             <div className="space-y-6">
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground">
-                  {STEPS[current].question}
-                </h1>
-                <p className="mt-2 text-sm text-muted">
-                  {STEPS[current].subtitle}
-                </p>
-              </div>
+              <h1 className="text-[26px] font-bold leading-[1.2] text-text">
+                {QUIZ[step].question}
+              </h1>
 
-              <div className="space-y-3">
-                {STEPS[current].options.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => selectOption(STEPS[current].key, option.value)}
-                    className={`w-full rounded-lg border px-5 py-4 text-left text-sm font-medium transition-all ${
-                      answers[STEPS[current].key] === option.value
-                        ? "border-accent bg-accent/10 text-accent"
-                        : "border-border bg-surface text-foreground hover:border-accent/50"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
+              <div className="space-y-2.5" role="radiogroup">
+                {QUIZ[step].options.map((opt) => (
+                  <RadioCard
+                    key={opt}
+                    label={opt}
+                    selected={answers[QUIZ[step].key] === opt}
+                    onClick={() => selectOption(QUIZ[step].key, opt)}
+                  />
                 ))}
               </div>
+
+              {showFeedback && (
+                <p className="animate-fade-in text-sm text-accent">
+                  {QUIZ[step].feedback}
+                </p>
+              )}
             </div>
           ) : (
-            <div className="space-y-6 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent/10 text-3xl">
-                🔬
-              </div>
-              <h1 className="text-2xl font-semibold text-foreground">
-                On va analyser ton cuir chevelu
+            <div className="space-y-6">
+              <h1 className="text-[26px] font-bold leading-[1.2] text-text">
+                Parfait. On a ce qu'il faut pour personnaliser ton bilan.
               </h1>
-              <p className="text-muted">
-                En quelques secondes, tu auras un score de densité, ton stade
-                Norwood, les zones à surveiller et des recommandations
-                personnalisées. C'est ton point de départ.
+              <p className="text-base text-text-muted">
+                Crée ton compte en 30 secondes pour lancer ton scan et garder
+                tes résultats.
               </p>
-              <button
-                onClick={handleFinish}
-                disabled={saving}
-                className="w-full rounded-lg bg-accent py-3.5 text-lg font-medium text-background transition-colors hover:bg-accent-hover disabled:opacity-50"
-              >
-                {saving ? "Enregistrement…" : "Lancer mon scan"}
-              </button>
+              <AuthForm mode="signup" onSuccess={handleAuthSuccess} />
+              <p className="text-xs text-text-faint">
+                Tes réponses et tes photos restent privées, hébergées en Europe.
+              </p>
             </div>
           )}
         </div>
 
-        {/* Back button */}
-        {current > 0 && (
+        {step > 0 && !showFeedback && (
           <button
             onClick={goBack}
-            className="mt-6 text-sm text-muted transition-colors hover:text-foreground"
+            className="mt-6 text-sm text-text-muted transition-colors hover:text-text"
           >
             ← Retour
           </button>

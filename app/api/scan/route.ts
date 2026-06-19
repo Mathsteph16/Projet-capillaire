@@ -14,15 +14,106 @@ function isRateLimited(ip: string): boolean {
   return false;
 }
 
-const SYSTEM_PROMPT = `Tu es un assistant de bien-être capillaire. À partir de la photo de cuir chevelu fournie, estime de façon indicative et non médicale : un score de densité sur 100, un stade approximatif sur l'échelle de Norwood (de I à VII), les zones les plus dégarnies (golfes, tempes, vertex, ligne frontale), et 5 recommandations de bien-être concrètes et actionnables (produits, gestes, habitudes). Réponds UNIQUEMENT en JSON valide avec les clés : score (nombre), norwood (chaîne 'I' à 'VII'), zones (tableau de chaînes), recommandations (tableau de 5 chaînes), message (une phrase encourageante et bienveillante). Rappelle que c'est une estimation de bien-être, pas un avis médical. Si la photo est inexploitable, renvoie score: null et un message demandant une meilleure photo.`;
+const SYSTEM_PROMPT = `Tu es l'assistant d'analyse de Scalpy, un outil de BIEN-ÊTRE capillaire. Tu analyses une photo de cuir chevelu et tu renvoies une estimation indicative.
+
+CADRE ABSOLU :
+- Tu fais du bien-être, jamais du médical. Tu ne poses aucun diagnostic, tu ne parles pas de maladie, tu ne prescris rien.
+- Tes estimations sont indicatives, pas des vérités cliniques.
+- Ton ton est bienveillant et encourageant, en français, en tutoiement. Jamais culpabilisant, jamais alarmiste, jamais de body-shaming.
+
+CE QUE TU ÉVALUES À PARTIR DE LA PHOTO :
+- Une estimation de densité capillaire sur 100 (100 = très dense).
+- Un stade indicatif sur l'échelle de Norwood, de I à VII.
+- Les zones qui semblent concernées (golfes, ligne frontale, vertex, dessus du crâne, tempes, ou général).
+- Trois recommandations de bien-être, concrètes et douces (sommeil, stress, alimentation, soin doux du cuir chevelu, habitudes). Aucune ne nomme de médicament ni d'acte médical. Une des trois peut suggérer, en douceur, d'en parler à un professionnel de santé pour explorer les options, sans rien prescrire.
+- Une phrase courte, encourageante et personnalisée.
+
+QUALITÉ DE LA PHOTO :
+- Si la photo est trop floue, trop sombre, ne montre pas le cuir chevelu, ou n'est pas exploitable, mets "usable" à false, "score" et "norwood" à null, "zones" vide, et demande gentiment une meilleure photo dans "message".
+
+SORTIE :
+- Tu réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte avant ou après, sans bloc de code, sans commentaire.
+- Les clés exactes sont : usable (booléen), score (entier 0-100 ou null), norwood (chaîne "I"-"VII" ou null), zones (tableau de chaînes en français), recommendations (tableau de 3 chaînes en français), message (chaîne en français, tutoiement), confidence ("low" | "medium" | "high").`;
+
+const PROMPT_VERSION = "analyse-v2";
+
+interface AnalysisResult {
+  usable: boolean;
+  score: number | null;
+  norwood: string | null;
+  zones: string[];
+  recommendations: string[];
+  message: string;
+  confidence: string;
+}
+
+function validateResult(obj: Record<string, unknown>): AnalysisResult | null {
+  if (typeof obj.usable !== "boolean") return null;
+  if (obj.usable) {
+    if (typeof obj.score !== "number" || obj.score < 0 || obj.score > 100) return null;
+    const validNorwood = ["I", "II", "III", "IV", "V", "VI", "VII"];
+    if (typeof obj.norwood !== "string" || !validNorwood.includes(obj.norwood)) return null;
+  }
+  if (!Array.isArray(obj.zones)) return null;
+  if (!Array.isArray(obj.recommendations) || obj.recommendations.length < 1) return null;
+  if (typeof obj.message !== "string") return null;
+
+  return {
+    usable: obj.usable as boolean,
+    score: obj.usable ? (obj.score as number) : null,
+    norwood: obj.usable ? (obj.norwood as string) : null,
+    zones: obj.zones as string[],
+    recommendations: obj.recommendations as string[],
+    message: obj.message as string,
+    confidence: (obj.confidence as string) || "medium",
+  };
+}
+
+async function callAnalysis(
+  client: Anthropic,
+  base64: string,
+  mediaType: string,
+  model: string,
+  strict = false
+): Promise<AnalysisResult> {
+  const userText = strict
+    ? "Réponds UNIQUEMENT avec le JSON valide demandé, rien d'autre. Analyse cette photo de cuir chevelu."
+    : "Analyse cette photo de cuir chevelu.";
+
+  const response = await client.messages.create({
+    model,
+    max_tokens: 1024,
+    temperature: 0.2,
+    system: SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: { type: "base64", media_type: mediaType as "image/jpeg", data: base64 },
+          },
+          { type: "text", text: userText },
+        ],
+      },
+    ],
+  });
+
+  const text = response.content[0].type === "text" ? response.content[0].text : "";
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error("No JSON in response");
+
+  const parsed = JSON.parse(jsonMatch[0]);
+  const validated = validateResult(parsed);
+  if (!validated) throw new Error("Invalid schema");
+
+  return validated;
+}
 
 export async function POST(request: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY non configurée" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "ANTHROPIC_API_KEY non configurée" }, { status: 500 });
   }
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
@@ -37,65 +128,28 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const file = formData.get("photo") as File | null;
 
-    if (!file) {
-      return NextResponse.json(
-        { error: "Aucune photo envoyée" },
-        { status: 400 }
-      );
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: "Photo trop lourde (max 10 Mo)" },
-        { status: 400 }
-      );
-    }
+    if (!file) return NextResponse.json({ error: "Aucune photo envoyée" }, { status: 400 });
+    if (file.size > 10 * 1024 * 1024) return NextResponse.json({ error: "Photo trop lourde (max 10 Mo)" }, { status: 400 });
 
     const bytes = await file.arrayBuffer();
     const base64 = Buffer.from(bytes).toString("base64");
+    const mediaType = file.type || "image/jpeg";
 
-    const mediaType = file.type as
-      | "image/jpeg"
-      | "image/png"
-      | "image/webp"
-      | "image/gif";
-
+    const model = process.env.SCAN_MODEL || "claude-haiku-4-5-20251001";
     const client = new Anthropic({ apiKey, timeout: 30_000 });
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: mediaType, data: base64 },
-            },
-            {
-              type: "text",
-              text: "Analyse cette photo de cuir chevelu.",
-            },
-          ],
-        },
-      ],
-    });
-
-    const text =
-      response.content[0].type === "text" ? response.content[0].text : "";
-
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return NextResponse.json(
-        { error: "Réponse non parseable", raw: text },
-        { status: 502 }
-      );
+    let result: AnalysisResult;
+    try {
+      result = await callAnalysis(client, base64, mediaType, model);
+    } catch {
+      // Retry with strict instruction
+      result = await callAnalysis(client, base64, mediaType, model, true);
     }
 
-    const result = JSON.parse(jsonMatch[0]);
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      prompt_version: PROMPT_VERSION,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erreur inconnue";
     return NextResponse.json({ error: message }, { status: 500 });

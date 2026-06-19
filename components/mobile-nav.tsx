@@ -23,7 +23,7 @@ export default function MobileNav() {
               key={tab.href}
               href={tab.href}
               className={`flex flex-col items-center gap-0.5 px-3 py-1 transition-colors ${
-                active ? "text-accent" : "text-muted"
+                active ? "text-accent" : "text-text-muted"
               }`}
             >
               <svg

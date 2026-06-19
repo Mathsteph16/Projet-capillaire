@@ -14,21 +14,21 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Scalpy — Scan capillaire par IA",
+  title: "Scalpy — Scanne tes cheveux, sache où tu en es",
   description:
-    "Analyse ton cuir chevelu en 30 secondes. Score de densité, stade Norwood, zones à surveiller et protocole personnalisé — gratuit, depuis ton téléphone.",
+    "Analyse ton cuir chevelu en 30 secondes. Score de densité, stade Norwood, zones fragiles et objectif visuel — gratuit, depuis ton téléphone.",
   keywords: [
     "perte de cheveux",
     "scan capillaire",
     "densité capillaire",
     "Norwood",
-    "repousse cheveux",
+    "bien-être capillaire",
     "analyse IA",
   ],
   openGraph: {
-    title: "Scalpy — Scanne ton crâne, vois ta repousse",
+    title: "Scalpy — Scanne tes cheveux, sache où tu en es",
     description:
-      "Score de densité, stade Norwood et protocole personnalisé en 30 secondes.",
+      "Score de densité, stade Norwood et objectif visuel en 30 secondes.",
     type: "website",
     locale: "fr_FR",
     siteName: "Scalpy",
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0a0a0c",
+  themeColor: "#0E0F12",
   viewportFit: "cover",
 };
 
@@ -59,7 +59,7 @@ export default function RootLayout({
           <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-3">
             <Link
               href="/"
-              className="text-xl font-bold tracking-tight text-foreground"
+              className="text-xl font-bold tracking-[-0.01em] text-text"
             >
               Scalpy
             </Link>

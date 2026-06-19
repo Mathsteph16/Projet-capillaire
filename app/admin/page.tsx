@@ -1,109 +1,117 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Card, Badge } from "@/components/ui";
 
-interface Stats {
-  inscriptions: number;
-  onboarding: number;
-  scans: number;
-  paywall_views: number;
-  offer_clicks: number;
-  offer_detail: { plus: number; pro: number };
+interface TunnelStats {
+  cta_clicks: number;
+  onboarding_started: number;
+  onboarding_completed: number;
+  scan_started: number;
+  scan_completed: number;
+  result_viewed: number;
+  paywall_viewed: number;
+  checkout_started: number;
+  purchase_completed: number;
+  active_subs: number;
+  canceled_subs: number;
+  rescan_count: number;
 }
 
-const CARDS: { key: keyof Stats; label: string }[] = [
-  { key: "inscriptions", label: "Inscriptions" },
-  { key: "scans", label: "Scans complétés" },
-  { key: "onboarding", label: "Onboarding terminés" },
-  { key: "paywall_views", label: "Paywall vues" },
-  { key: "offer_clicks", label: "Clics sur une offre" },
-];
+const TUNNEL_STEPS = [
+  { key: "cta_clicks", label: "CTA cliqués" },
+  { key: "onboarding_started", label: "Quiz commencé" },
+  { key: "onboarding_completed", label: "Quiz terminé" },
+  { key: "scan_started", label: "Scan lancé" },
+  { key: "scan_completed", label: "Scan terminé" },
+  { key: "result_viewed", label: "Résultat vu" },
+  { key: "paywall_viewed", label: "Paywall vu" },
+  { key: "checkout_started", label: "Checkout lancé" },
+  { key: "purchase_completed", label: "Achat complété" },
+] as const;
 
-export default function Admin() {
-  const [stats, setStats] = useState<Stats | null>(null);
+export default function AdminPage() {
+  const [stats, setStats] = useState<TunnelStats | null>(null);
+  const [period, setPeriod] = useState(7);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/admin")
-      .then(async (res) => {
-        if (!res.ok) {
-          setError(res.status === 401 ? "Accès réservé." : "Erreur serveur.");
-          return;
-        }
-        setStats(await res.json());
+    fetch(`/api/admin?days=${period}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) setError(data.error);
+        else setStats(data);
       })
-      .catch(() => setError("Impossible de charger les stats."))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
-    return (
-      <main className="flex flex-1 flex-col items-center justify-center px-4">
-        <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main className="flex flex-1 flex-col items-center justify-center px-4">
-        <p className="text-signal">{error}</p>
-      </main>
-    );
-  }
-
-  if (!stats) return null;
-
-  const today = new Date().toLocaleDateString("fr-FR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+      .catch(() => setError("Erreur de chargement"));
+  }, [period]);
 
   return (
-    <main className="flex flex-1 flex-col items-center px-4 py-10">
-      <div className="w-full max-w-lg space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Admin</h1>
-          <p className="mt-1 text-sm text-muted capitalize">{today}</p>
+    <main className="flex flex-1 flex-col items-center px-5 py-10">
+      <div className="w-full max-w-2xl space-y-6 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <h1 className="text-[26px] font-bold text-text">Admin</h1>
+          <select
+            value={period}
+            onChange={(e) => setPeriod(Number(e.target.value))}
+            className="rounded-[12px] border border-border bg-surface px-3 py-2 text-sm text-text"
+          >
+            <option value={1}>Aujourd'hui</option>
+            <option value={7}>7 jours</option>
+            <option value={30}>30 jours</option>
+            <option value={90}>90 jours</option>
+          </select>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {CARDS.map(({ key, label }) => (
-            <div
-              key={key}
-              className="rounded-xl border border-border bg-surface p-4 text-center"
-            >
-              <p className="text-3xl font-bold text-foreground">
-                {stats[key] as number}
-              </p>
-              <p className="mt-1 text-xs text-muted">{label}</p>
-            </div>
-          ))}
-        </div>
+        {error && <p className="text-sm text-danger">{error}</p>}
 
-        {stats.offer_clicks > 0 && (
-          <div className="rounded-xl border border-border bg-surface p-5">
-            <p className="mb-3 text-sm font-medium text-muted">
-              Détail des offres choisies
-            </p>
-            <div className="flex gap-4">
-              <div className="flex-1 rounded-lg bg-accent/5 p-3 text-center">
-                <p className="text-xl font-bold text-accent">
-                  {stats.offer_detail.plus}
-                </p>
-                <p className="text-xs text-muted">Plus</p>
-              </div>
-              <div className="flex-1 rounded-lg bg-accent/5 p-3 text-center">
-                <p className="text-xl font-bold text-accent">
-                  {stats.offer_detail.pro}
-                </p>
-                <p className="text-xs text-muted">Pro</p>
-              </div>
+        {stats && (
+          <>
+            {/* Key metrics */}
+            <div className="grid grid-cols-3 gap-3">
+              <Card className="text-center">
+                <p className="text-[20px] font-bold text-accent">{stats.active_subs}</p>
+                <p className="text-xs text-text-faint">Abonnés actifs</p>
+              </Card>
+              <Card className="text-center">
+                <p className="text-[20px] font-bold text-text">{stats.canceled_subs}</p>
+                <p className="text-xs text-text-faint">Résiliés</p>
+              </Card>
+              <Card className="text-center">
+                <p className="text-[20px] font-bold text-text">{stats.rescan_count}</p>
+                <p className="text-xs text-text-faint">Re-scans</p>
+              </Card>
             </div>
-          </div>
+
+            {/* Tunnel */}
+            <Card>
+              <h2 className="mb-4 text-[17px] font-semibold text-text">
+                Tunnel de conversion
+              </h2>
+              <div className="space-y-2">
+                {TUNNEL_STEPS.map((step, i) => {
+                  const count = stats[step.key as keyof TunnelStats] as number;
+                  const prevCount = i > 0
+                    ? (stats[TUNNEL_STEPS[i - 1].key as keyof TunnelStats] as number)
+                    : count;
+                  const rate = prevCount > 0 ? Math.round((count / prevCount) * 100) : 0;
+
+                  return (
+                    <div key={step.key} className="flex items-center justify-between rounded-[8px] border border-border bg-bg px-3 py-2">
+                      <span className="text-sm text-text-muted">{step.label}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-text">{count}</span>
+                        {i > 0 && (
+                          <Badge variant={rate >= 50 ? "accent" : rate >= 20 ? "signal" : "danger"}>
+                            {rate}%
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </>
         )}
       </div>
     </main>

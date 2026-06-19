@@ -67,11 +67,13 @@ export default function Confidentialite() {
             Traitement des photos
           </h2>
           <p>
-            Les photos de cuir chevelu sont transmises à l'API Claude
-            (Anthropic) pour analyse. Elles ne sont pas conservées par Anthropic
-            au-delà du traitement de la requête. Les photos sont stockées dans
-            ton espace personnel sécurisé sur Supabase et ne sont accessibles
-            qu'à toi.
+            Les photos de cuir chevelu sont transmises aux services d'analyse
+            (Anthropic) et de génération d'image (fal.ai / Google) pour produire
+            ton bilan et ta projection. Elles ne sont pas conservées par ces
+            services au-delà du traitement de la requête et ne sont pas
+            utilisées pour l'entraînement de leurs modèles. Les photos sont
+            stockées dans ton espace personnel sécurisé sur Supabase (région UE)
+            et ne sont accessibles qu'à toi.
           </p>
         </section>
 
@@ -80,9 +82,12 @@ export default function Confidentialite() {
             Durée de conservation
           </h2>
           <p>
-            Tes données sont conservées tant que ton compte est actif. Tu peux
-            demander la suppression de ton compte et de toutes les données
-            associées à tout moment par email.
+            Tes données sont conservées tant que ton compte est actif, car le
+            suivi mensuel nécessite de comparer tes scans dans le temps. Après
+            12 mois d'inactivité, tes données sont purgées automatiquement. Tu
+            peux supprimer un scan précis ou ton compte entier à tout moment
+            depuis les paramètres de l'app — la suppression est réelle et
+            complète (données, photos, fichiers).
           </p>
         </section>
 
@@ -140,11 +145,23 @@ export default function Confidentialite() {
             </li>
             <li>
               <span className="text-foreground">Supabase</span> (base de
-              données, stockage, authentification) — Singapour
+              données, stockage, authentification) — Région UE (Frankfurt)
             </li>
             <li>
               <span className="text-foreground">Anthropic</span> (analyse IA
               des photos) — États-Unis
+            </li>
+            <li>
+              <span className="text-foreground">fal.ai / Google</span>{" "}
+              (génération d'image pour la projection) — États-Unis
+            </li>
+            <li>
+              <span className="text-foreground">Lemon Squeezy</span> (paiement,
+              Merchant-of-Record) — États-Unis
+            </li>
+            <li>
+              <span className="text-foreground">Resend</span> (emails
+              transactionnels) — États-Unis
             </li>
             <li>
               <span className="text-foreground">Google</span> (authentification

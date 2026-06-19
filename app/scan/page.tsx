@@ -1,96 +1,51 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
 import { compressImage } from "@/lib/compress-image";
+import { Button, Checkbox, Disclaimer, ScanAnimation } from "@/components/ui";
 
 const SCAN_STEPS = [
-  "Lecture de l'image…",
-  "Analyse de la densité capillaire…",
-  "Détection des zones clairsemées…",
-  "Calcul du stade Norwood…",
-  "Évaluation des follicules actifs…",
-  "Génération des recommandations…",
+  "Analyse de la densité…",
+  "Détection des zones fragiles…",
+  "Estimation du stade…",
+  "Construction de ton bilan…",
 ];
 
-function ScanAnimation({ preview }: { preview: string }) {
-  const [stepIndex, setStepIndex] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setStepIndex((i) => (i + 1) % SCAN_STEPS.length);
-    }, 2400);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div className="flex flex-col items-center space-y-8">
-      {/* Photo with scan effect */}
-      <div className="relative mx-auto w-72 overflow-hidden rounded-2xl border border-border">
-        <img
-          src={preview}
-          alt="Scan en cours"
-          className="block w-full"
-        />
-        {/* Scan line */}
-        <div className="scan-line absolute left-0 h-1 w-full shadow-[0_0_20px_6px_rgba(52,211,153,0.5)]" />
-        {/* Overlay grid */}
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(transparent_2px,rgba(10,10,12,0.03)_2px)] bg-[length:100%_4px]" />
-        {/* Corner markers */}
-        <div className="absolute left-3 top-3 h-6 w-6 border-l-2 border-t-2 border-accent" />
-        <div className="absolute right-3 top-3 h-6 w-6 border-r-2 border-t-2 border-accent" />
-        <div className="absolute bottom-3 left-3 h-6 w-6 border-b-2 border-l-2 border-accent" />
-        <div className="absolute bottom-3 right-3 h-6 w-6 border-b-2 border-r-2 border-accent" />
-        {/* Pulse overlay */}
-        <div className="pointer-events-none absolute inset-0 animate-pulse bg-accent/5" />
-      </div>
-
-      {/* Steps */}
-      <div className="flex flex-col items-center space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-          <p
-            key={stepIndex}
-            className="animate-slide-left text-sm font-medium text-accent"
-          >
-            {SCAN_STEPS[stepIndex]}
-          </p>
-        </div>
-        {/* Progress dots */}
-        <div className="flex gap-1.5">
-          {SCAN_STEPS.map((_, i) => (
-            <div
-              key={i}
-              className={`h-1.5 w-1.5 rounded-full transition-all duration-500 ${
-                i <= stepIndex ? "bg-accent" : "bg-border"
-              }`}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+const MIN_ANIMATION_MS = 4000;
 
 export default function Scan() {
-  const [preview, setPreview] = useState<string>("");
+  const [consent, setConsent] = useState(false);
+  const [preview, setPreview] = useState("");
   const [scanning, setScanning] = useState(false);
+  const [animStep, setAnimStep] = useState(0);
   const [error, setError] = useState("");
-  const formRef = useRef<HTMLFormElement>(null);
   const fileRef = useRef<File | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
+
+  const advanceSteps = useCallback(() => {
+    let step = 0;
+    const interval = setInterval(() => {
+      step++;
+      if (step < SCAN_STEPS.length) {
+        setAnimStep(step);
+      } else {
+        clearInterval(interval);
+      }
+    }, 1200);
+    return () => clearInterval(interval);
+  }, []);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (file.size > 10 * 1024 * 1024) {
       setError("Photo trop lourde (max 10 Mo). Essaie avec une autre.");
       return;
     }
-
     compressImage(file).then((compressed) => {
       fileRef.current = compressed;
       setPreview(URL.createObjectURL(compressed));
@@ -98,67 +53,82 @@ export default function Scan() {
     setError("");
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!fileRef.current) return;
+    if (!fileRef.current || !consent) return;
 
     setScanning(true);
+    setAnimStep(0);
     setError("");
+
+    const animStart = Date.now();
+    const cleanupAnim = advanceSteps();
 
     try {
       const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push("/auth?next=/scan"); return; }
 
-      if (!user) {
-        router.push("/auth?next=/scan");
-        return;
-      }
+      // Record photo consent
+      await supabase.from("profiles").upsert(
+        { id: user.id, photo_consent_at: new Date().toISOString() },
+        { onConflict: "id" }
+      ).then(() => {});
 
-      // 1. Upload photo to Supabase Storage
-      const ext = fileRef.current.name.split(".").pop() || "jpg";
-      const path = `${user.id}/${Date.now()}.${ext}`;
+      trackEvent("photo_uploaded");
+      trackEvent("scan_started");
+
+      // Upload photo
+      const scanId = crypto.randomUUID();
+      const path = `${user.id}/${scanId}/original.jpg`;
 
       const { error: uploadError } = await supabase.storage
-        .from("photos")
-        .upload(path, fileRef.current, { contentType: fileRef.current.type });
+        .from("scalp-photos")
+        .upload(path, fileRef.current, { contentType: "image/jpeg" });
 
-      if (uploadError) throw new Error(uploadError.message);
+      if (uploadError) {
+        // fallback to old bucket
+        const { error: fallback } = await supabase.storage
+          .from("photos")
+          .upload(path, fileRef.current, { contentType: "image/jpeg" });
+        if (fallback) throw new Error(fallback.message);
+      }
 
-      // 2. Call scan API
+      // Call analysis API
       const formData = new FormData();
       formData.append("photo", fileRef.current);
 
-      const res = await fetch("/api/scan", {
-        method: "POST",
-        body: formData,
-      });
-
+      const res = await fetch("/api/scan", { method: "POST", body: formData });
       const result = await res.json();
 
-      if (result.error) throw new Error(result.error);
+      if (result.error) {
+        trackEvent("scan_failed", { reason: result.error });
+        throw new Error(result.error);
+      }
 
-      // 3. Save scan to Supabase
-      const norwoodMap: Record<string, number> = {
-        I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7,
-      };
+      // Wait for minimum animation time
+      const elapsed = Date.now() - animStart;
+      if (elapsed < MIN_ANIMATION_MS) {
+        await new Promise((r) => setTimeout(r, MIN_ANIMATION_MS - elapsed));
+      }
 
-      const { error: insertError } = await supabase.from("scans").insert({
-        user_id: user.id,
-        score: result.score,
-        norwood: norwoodMap[result.norwood] || null,
-        zones: result.zones,
-        photo_url: path,
-      });
+      setAnimStep(SCAN_STEPS.length);
 
-      if (insertError) throw new Error(insertError.message);
-
-      trackEvent("scan_complete");
+      trackEvent("scan_completed", { score: result.score });
 
       sessionStorage.setItem("scanResult", JSON.stringify(result));
-      router.push("/resultat");
+      sessionStorage.setItem("scanPhotoPath", path);
+
+      // Trigger projection async (non-blocking)
+      fetch("/api/projection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scanId, photoPath: path }),
+      }).catch(() => {});
+
+      setTimeout(() => router.push("/resultat"), 600);
     } catch (err: unknown) {
+      cleanupAnim();
       const msg = err instanceof Error ? err.message : "Une erreur est survenue";
       setError(msg);
       setScanning(false);
@@ -167,67 +137,90 @@ export default function Scan() {
 
   if (scanning) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center px-4 py-12">
-        <ScanAnimation preview={preview} />
+      <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
+        <ScanAnimation
+          photoUrl={preview}
+          steps={SCAN_STEPS}
+          currentStep={animStep}
+        />
       </main>
     );
   }
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-4 py-12">
-      <div className="w-full max-w-lg space-y-6">
+    <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
+      <div className="w-full max-w-lg space-y-6 animate-fade-in">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">
-            Scan capillaire
+          <h1 className="text-[26px] font-bold text-text">
+            Ton scan capillaire
           </h1>
-          <p className="mt-2 text-muted">
-            Prends une photo nette du dessus de ton crâne, bien éclairée, à
-            environ 20 cm.
+          <p className="mt-2 text-text-muted">
+            Prends une photo de ton cuir chevelu pour obtenir ton bilan.
           </p>
         </div>
 
+        {/* Consent */}
+        <div className="rounded-[16px] border border-border bg-surface p-5 space-y-3">
+          <Checkbox
+            label="J'accepte que ma photo soit analysée pour générer mon bilan. Elle reste privée, hébergée en Europe, et je peux la supprimer quand je veux."
+            checked={consent}
+            onChange={() => setConsent(!consent)}
+          />
+          <Disclaimer />
+        </div>
+
         {/* Tips */}
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <p className="text-sm font-medium text-foreground">
-            Pour un bon scan :
-          </p>
-          <ul className="mt-2 space-y-1.5 text-sm text-muted">
-            <li className="flex gap-2">
-              <span className="text-accent">✓</span>
-              Lumière naturelle ou forte, pas de contre-jour
-            </li>
-            <li className="flex gap-2">
-              <span className="text-accent">✓</span>
-              Cheveux secs, non coiffés, au naturel
-            </li>
-            <li className="flex gap-2">
-              <span className="text-accent">✓</span>
-              Montre la zone qui t'inquiète (dessus, golfes, front)
-            </li>
-            <li className="flex gap-2">
-              <span className="text-signal">✗</span>
-              Pas de casquette, pas de filtre, pas de flou
-            </li>
+        <div className="rounded-[16px] border border-border bg-surface p-5">
+          <p className="text-sm font-semibold text-text">Pour un bon scan :</p>
+          <ul className="mt-3 space-y-2 text-sm text-text-muted">
+            {[
+              "Bonne lumière, de préférence naturelle",
+              "Cheveux comme d'habitude (ou légèrement écartés)",
+              "Cadre la zone qui t'inquiète",
+              "Pas de casquette, photo nette",
+            ].map((tip) => (
+              <li key={tip} className="flex items-start gap-2">
+                <svg className="mt-0.5 h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
+                {tip}
+              </li>
+            ))}
           </ul>
         </div>
 
         <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface p-10 transition-all hover:border-accent hover:bg-accent/5">
+          <label className={`flex cursor-pointer flex-col items-center justify-center rounded-[16px] border-2 border-dashed p-10 transition-all ${
+            consent
+              ? "border-border bg-surface hover:border-accent hover:bg-accent-soft"
+              : "border-border/50 bg-surface/50 opacity-50 cursor-not-allowed"
+          }`}>
             {preview ? (
-              <img
-                src={preview}
-                alt="Aperçu"
-                className="max-h-64 rounded-lg"
-              />
+              <div className="space-y-3 text-center">
+                <img src={preview} alt="Aperçu" className="max-h-64 rounded-[12px]" />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setPreview("");
+                    fileRef.current = null;
+                    if (formRef.current) formRef.current.reset();
+                  }}
+                  className="text-sm text-text-muted hover:text-text"
+                >
+                  Reprendre
+                </button>
+              </div>
             ) : (
               <>
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-2xl">
-                  📷
-                </div>
-                <span className="mt-3 text-sm font-medium text-foreground">
-                  Choisis ou prends une photo
+                <svg className="h-12 w-12 text-text-faint" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+                </svg>
+                <span className="mt-3 text-sm font-medium text-text">
+                  Prendre une photo ou importer
                 </span>
-                <span className="mt-1 text-xs text-muted">
+                <span className="mt-1 text-xs text-text-faint">
                   JPG, PNG ou WebP
                 </span>
               </>
@@ -238,38 +231,33 @@ export default function Scan() {
               accept="image/jpeg,image/png,image/webp"
               capture="environment"
               required
+              disabled={!consent}
               onChange={handleFileChange}
               className="hidden"
             />
           </label>
 
-          {preview && (
-            <button
-              type="button"
-              onClick={() => {
-                setPreview("");
-                fileRef.current = null;
-                if (formRef.current) formRef.current.reset();
-              }}
-              className="text-sm text-muted hover:text-foreground"
-            >
-              Changer de photo
-            </button>
-          )}
-
           {error && (
-            <p className="rounded-lg border border-signal/20 bg-signal/5 p-3 text-sm text-signal">
-              {error}
-            </p>
+            <div className="rounded-[12px] border border-danger/20 bg-danger/5 p-3 space-y-2">
+              <p className="text-sm text-danger">{error}</p>
+              <button
+                type="button"
+                onClick={() => { setError(""); setScanning(false); }}
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                Réessayer
+              </button>
+            </div>
           )}
 
-          <button
+          <Button
             type="submit"
-            disabled={!preview}
-            className="w-full rounded-lg bg-accent py-3.5 text-lg font-medium text-background transition-colors hover:bg-accent-hover disabled:opacity-50"
+            variant="primary"
+            size="lg"
+            disabled={!preview || !consent}
           >
             Lancer le scan
-          </button>
+          </Button>
         </form>
       </div>
     </main>

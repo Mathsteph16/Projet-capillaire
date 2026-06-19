@@ -1,26 +1,44 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0a0c;
-  --surface: #141418;
-  --foreground: #f0f0f2;
-  --muted: #71717a;
-  --accent: #34d399;
-  --accent-hover: #2cc48a;
-  --signal: #f59e0b;
-  --border: #27272e;
+  --bg: #0E0F12;
+  --surface: #16181D;
+  --surface-2: #1E2128;
+  --border: #262A32;
+  --text: #F2F3F5;
+  --text-muted: #9AA0A8;
+  --text-faint: #6B7178;
+  --accent: #16B981;
+  --accent-hover: #13A574;
+  --accent-soft: rgba(22, 185, 129, 0.12);
+  --signal: #F5A524;
+  --danger: #E5484D;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.45);
+  --shadow-accent-glow: 0 0 0 1px rgba(22, 185, 129, 0.4), 0 8px 30px rgba(22, 185, 129, 0.15);
+  --ease-entrance: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @theme inline {
-  --color-background: var(--background);
+  --color-bg: var(--bg);
   --color-surface: var(--surface);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
   --color-signal: var(--signal);
-  --color-border: var(--border);
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-danger: var(--danger);
+  --color-foreground: var(--text);
+  --color-background: var(--bg);
+  --color-muted: var(--text-muted);
+  --font-sans: "var(--font-inter)", ui-sans-serif, system-ui, sans-serif;
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+  --shadow-accent-glow: var(--shadow-accent-glow);
 }
 
 html {
@@ -28,13 +46,13 @@ html {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--text);
 }
 
 ::selection {
-  background: rgba(52, 211, 153, 0.25);
-  color: var(--foreground);
+  background: rgba(22, 185, 129, 0.25);
+  color: var(--text);
 }
 
 :focus-visible {
@@ -51,13 +69,19 @@ a:focus-visible {
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-  -webkit-text-fill-color: var(--foreground);
+  -webkit-text-fill-color: var(--text);
   -webkit-box-shadow: 0 0 0px 1000px var(--surface) inset;
   transition: background-color 5000s ease-in-out 0s;
 }
 
+/* Animations */
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -71,16 +95,19 @@ input:-webkit-autofill:focus {
   to { opacity: 1; transform: translateX(0); }
 }
 
-.animate-fade-in {
-  animation: fade-in 0.4s ease-out;
+@keyframes gauge-fill {
+  from { stroke-dashoffset: var(--gauge-circumference); }
+  to { stroke-dashoffset: var(--gauge-offset); }
 }
 
-.animate-slide-left {
-  animation: slide-left 0.35s ease-out;
+@keyframes progress-fill {
+  from { width: 0%; }
+  to { width: var(--progress-width); }
 }
 
-.animate-slide-right {
-  animation: slide-right 0.35s ease-out;
+@keyframes blur-in {
+  from { backdrop-filter: blur(0px); opacity: 0; }
+  to { backdrop-filter: blur(12px); opacity: 1; }
 }
 
 @keyframes scan-sweep {
@@ -88,6 +115,31 @@ input:-webkit-autofill:focus {
   5% { opacity: 1; }
   95% { opacity: 1; }
   100% { top: 100%; opacity: 0; }
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s var(--ease-entrance);
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.25s var(--ease-entrance);
+}
+
+.animate-slide-left {
+  animation: slide-left 0.25s var(--ease-entrance);
+}
+
+.animate-slide-right {
+  animation: slide-right 0.25s var(--ease-entrance);
+}
+
+.animate-count-up {
+  animation: count-up 0.6s var(--ease-entrance);
 }
 
 .scan-line {
@@ -101,11 +153,17 @@ input:-webkit-autofill:focus {
   animation: scan-sweep 2.8s ease-in-out infinite;
 }
 
-@keyframes count-up {
-  from { opacity: 0; transform: scale(0.5); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.animate-count-up {
-  animation: count-up 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-fade-in-up,
+  .animate-slide-left,
+  .animate-slide-right,
+  .animate-count-up {
+    animation: none;
+  }
+  .scan-line {
+    animation: none;
+    opacity: 0.5;
+    top: 50%;
+  }
 }
