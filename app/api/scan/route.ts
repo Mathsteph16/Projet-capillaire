@@ -1,7 +1,20 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 
-const SYSTEM_PROMPT = `Tu es un assistant de bien-être capillaire. À partir de la photo de cuir chevelu fournie, estime de façon indicative et non médicale : un score de densité sur 100, un stade approximatif sur l'échelle de Norwood (de I à VII), les zones les plus dégarnies (golfes, tempes, vertex, ligne frontale), et 3 recommandations de bien-être. Réponds UNIQUEMENT en JSON valide avec les clés : score (nombre), norwood (chaîne 'I' à 'VII'), zones (tableau de chaînes), recommandations (tableau de 3 chaînes), message (une phrase encourageante). Rappelle que c'est une estimation de bien-être, pas un avis médical. Si la photo est inexploitable, renvoie score: null et un message demandant une meilleure photo.`;
+const rateMap = new Map<string, number[]>();
+const RATE_LIMIT = 5;
+const RATE_WINDOW = 60_000;
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const timestamps = (rateMap.get(ip) ?? []).filter((t) => now - t < RATE_WINDOW);
+  if (timestamps.length >= RATE_LIMIT) return true;
+  timestamps.push(now);
+  rateMap.set(ip, timestamps);
+  return false;
+}
+
+const SYSTEM_PROMPT = `Tu es un assistant de bien-être capillaire. À partir de la photo de cuir chevelu fournie, estime de façon indicative et non médicale : un score de densité sur 100, un stade approximatif sur l'échelle de Norwood (de I à VII), les zones les plus dégarnies (golfes, tempes, vertex, ligne frontale), et 5 recommandations de bien-être concrètes et actionnables (produits, gestes, habitudes). Réponds UNIQUEMENT en JSON valide avec les clés : score (nombre), norwood (chaîne 'I' à 'VII'), zones (tableau de chaînes), recommandations (tableau de 5 chaînes), message (une phrase encourageante et bienveillante). Rappelle que c'est une estimation de bien-être, pas un avis médical. Si la photo est inexploitable, renvoie score: null et un message demandant une meilleure photo.`;
 
 export async function POST(request: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -9,6 +22,14 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "ANTHROPIC_API_KEY non configurée" },
       { status: 500 }
+    );
+  }
+
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  if (isRateLimited(ip)) {
+    return NextResponse.json(
+      { error: "Trop de scans en peu de temps. Réessaie dans une minute." },
+      { status: 429 }
     );
   }
 
@@ -23,6 +44,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: "Photo trop lourde (max 10 Mo)" },
+        { status: 400 }
+      );
+    }
+
     const bytes = await file.arrayBuffer();
     const base64 = Buffer.from(bytes).toString("base64");
 
@@ -32,7 +60,7 @@ export async function POST(request: Request) {
       | "image/webp"
       | "image/gif";
 
-    const client = new Anthropic({ apiKey });
+    const client = new Anthropic({ apiKey, timeout: 30_000 });
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",

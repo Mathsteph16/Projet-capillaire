@@ -103,7 +103,7 @@ export default function Plus() {
 
   return (
     <main className="flex flex-1 flex-col items-center px-4 py-12">
-      <div className="w-full max-w-4xl space-y-8">
+      <div className="w-full max-w-4xl space-y-8 animate-fade-in">
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">
             Choisis ton plan

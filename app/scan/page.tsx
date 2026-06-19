@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
+import { compressImage } from "@/lib/compress-image";
 
 const SCAN_STEPS = [
   "Lecture de l'image…",
@@ -83,11 +84,18 @@ export default function Scan() {
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) {
-      fileRef.current = file;
-      setPreview(URL.createObjectURL(file));
-      setError("");
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Photo trop lourde (max 10 Mo). Essaie avec une autre.");
+      return;
     }
+
+    compressImage(file).then((compressed) => {
+      fileRef.current = compressed;
+      setPreview(URL.createObjectURL(compressed));
+    });
+    setError("");
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {

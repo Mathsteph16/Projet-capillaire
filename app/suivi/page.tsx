@@ -215,7 +215,7 @@ export default function Suivi() {
 
   return (
     <main className="flex flex-1 flex-col items-center px-4 py-10">
-      <div className="w-full max-w-lg space-y-6">
+      <div className="w-full max-w-lg space-y-6 animate-fade-in">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Ton suivi</h1>
           <p className="mt-1 text-sm text-muted">

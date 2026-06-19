@@ -8,8 +8,17 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
+    const { error, data } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data.user) {
+      const createdAt = new Date(data.user.created_at);
+      const isNew = Date.now() - createdAt.getTime() < 60_000;
+      if (isNew) {
+        await supabase.from("events").insert({
+          user_id: data.user.id,
+          name: "inscription",
+          meta: { provider: "google" },
+        });
+      }
       return NextResponse.redirect(new URL(next, origin));
     }
   }

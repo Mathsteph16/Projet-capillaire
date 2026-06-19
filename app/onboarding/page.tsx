@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
@@ -63,9 +63,36 @@ export default function Onboarding() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [direction, setDirection] = useState<"next" | "prev">("next");
   const [saving, setSaving] = useState(false);
+  const [ready, setReady] = useState(false);
   const router = useRouter();
 
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { setReady(true); return; }
+      const { data } = await supabase
+        .from("onboarding")
+        .select("id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        router.replace("/scan");
+      } else {
+        setReady(true);
+      }
+    });
+  }, [router]);
+
   const progress = ((current + 1) / TOTAL) * 100;
+
+  if (!ready) {
+    return (
+      <main className="flex flex-1 flex-col items-center justify-center px-4">
+        <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+      </main>
+    );
+  }
 
   const selectOption = useCallback(
     (key: string, value: string) => {

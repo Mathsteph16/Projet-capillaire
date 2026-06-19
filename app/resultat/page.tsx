@@ -106,8 +106,17 @@ function DensityGauge({ score }: { score: number }) {
   const [animated, setAnimated] = useState(0);
 
   useEffect(() => {
-    const timeout = setTimeout(() => setAnimated(score), 100);
-    return () => clearTimeout(timeout);
+    const duration = 1200;
+    const start = performance.now();
+    let raf: number;
+    function tick(now: number) {
+      const t = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      setAnimated(Math.round(ease * score));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, [score]);
 
   const circumference = 2 * Math.PI * 54;
@@ -234,7 +243,7 @@ export default function Resultat() {
 
   return (
     <main className="flex flex-1 flex-col items-center px-4 py-10">
-      <div className="w-full max-w-lg space-y-8">
+      <div className="w-full max-w-lg space-y-8 animate-fade-in">
         {/* Header */}
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-foreground">
@@ -361,6 +370,25 @@ export default function Resultat() {
             Voir mon suivi
           </Link>
         </div>
+
+        <button
+          onClick={() => {
+            if (navigator.share) {
+              navigator.share({
+                title: "Mon scan Scalpy",
+                text: `Score de densité : ${result.score}/100 — Stade Norwood ${result.norwood}`,
+                url: window.location.origin,
+              });
+            } else {
+              navigator.clipboard.writeText(
+                `Mon scan Scalpy : ${result.score}/100, Norwood ${result.norwood} — ${window.location.origin}`
+              );
+            }
+          }}
+          className="w-full rounded-lg border border-border py-2.5 text-center text-sm text-muted transition-colors hover:bg-surface hover:text-foreground"
+        >
+          Partager mon résultat
+        </button>
 
         {/* Disclaimer */}
         <p className="text-center text-xs text-muted">

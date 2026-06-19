@@ -92,11 +92,18 @@ function AuthInner() {
   }
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-4">
-      <div className="w-full max-w-sm space-y-6">
-        <h1 className="text-2xl font-semibold text-foreground">
-          {mode === "login" ? "Connexion" : "Inscription"}
-        </h1>
+    <main className="flex flex-1 flex-col items-center justify-center px-4 py-12">
+      <div className="w-full max-w-sm space-y-6 animate-fade-in">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">
+            {mode === "login" ? "Content de te revoir" : "Crée ton compte"}
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            {mode === "login"
+              ? "Connecte-toi pour retrouver tes résultats."
+              : "Ton premier scan est gratuit."}
+          </p>
+        </div>
 
         <button
           type="button"
