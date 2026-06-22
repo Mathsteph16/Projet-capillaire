@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import {
   FilesetResolver,
   ImageSegmenter,
-  FaceLandmarker,
   type ImageSegmenterResult,
 } from "@mediapipe/tasks-vision";
 
@@ -12,17 +11,21 @@ const WASM =
   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
 const HAIR_MODEL =
   "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite";
-const FACE_MODEL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
 const HAIR_CLASS = 1;
 const EMERAUDE = [22, 185, 129];
-const ALIGN_THRESHOLD = 18;
+const STABLE_FRAMES = 20;
+const MIN_HAIR_RATIO = 0.04;
 
 type Props = {
   onAllCaptured: (photos: string[]) => void;
   onError?: (err: Error) => void;
 };
+
+const PHASES = [
+  { title: "Prise 1 sur 2", heading: "Cadre ton visage de face", label: "Centre ton visage dans le cercle" },
+  { title: "Prise 2 sur 2", heading: "Penche la tête et montre le sommet", label: "Montre le sommet de ton crâne" },
+];
 
 export default function HairScanner({ onAllCaptured, onError }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -30,23 +33,18 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
   const captureRef = useRef<HTMLCanvasElement>(null);
 
   const segmenterRef = useRef<ImageSegmenter | null>(null);
-  const faceRef = useRef<FaceLandmarker | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(-1);
-  const alignedFramesRef = useRef(0);
+  const stableFramesRef = useRef(0);
   const photosRef = useRef<string[]>([]);
   const capturingRef = useRef(false);
+  const phaseRef = useRef(0);
 
   const [status, setStatus] = useState<"loading" | "ready" | "aligning" | "captured" | "error">("loading");
   const [loadingMsg, setLoadingMsg] = useState("Préparation de la caméra...");
   const [phase, setPhase] = useState(0);
   const [flash, setFlash] = useState(false);
   const [alignProgress, setAlignProgress] = useState(0);
-
-  const PHASES = [
-    { title: "Prise 1 sur 2", heading: "Cadre le haut de ton crâne", label: "Cadre ton visage de face" },
-    { title: "Prise 2 sur 2", heading: "Penche la tête et montre le sommet", label: "Montre le sommet de ton crâne" },
-  ];
 
   const doCapture = useCallback(() => {
     if (capturingRef.current) return;
@@ -66,12 +64,13 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
 
     if (photosRef.current.length < PHASES.length) {
       setTimeout(() => {
-        setPhase((p) => p + 1);
+        phaseRef.current += 1;
+        setPhase(phaseRef.current);
         setStatus("ready");
-        alignedFramesRef.current = 0;
+        stableFramesRef.current = 0;
         setAlignProgress(0);
         capturingRef.current = false;
-      }, 400);
+      }, 600);
     } else {
       setStatus("captured");
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -85,8 +84,12 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
     const video = videoRef.current;
     const overlay = overlayRef.current;
     const segmenter = segmenterRef.current;
-    const face = faceRef.current;
-    if (!video || !overlay || !segmenter || capturingRef.current) {
+    if (!video || !overlay || !segmenter) {
+      rafRef.current = requestAnimationFrame(renderLoop);
+      return;
+    }
+
+    if (capturingRef.current) {
       rafRef.current = requestAnimationFrame(renderLoop);
       return;
     }
@@ -103,49 +106,46 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
         segmenter.segmentForVideo(video, now, (res: ImageSegmenterResult) => {
           ctx.clearRect(0, 0, overlay.width, overlay.height);
           const mask = res.categoryMask;
-          if (mask) {
-            const data = mask.getAsUint8Array();
-            const img = ctx.createImageData(overlay.width, overlay.height);
-            for (let i = 0; i < data.length; i++) {
-              const p = i * 4;
-              if (data[i] === HAIR_CLASS) {
-                img.data[p] = EMERAUDE[0];
-                img.data[p + 1] = EMERAUDE[1];
-                img.data[p + 2] = EMERAUDE[2];
-                img.data[p + 3] = 110;
-              } else {
-                img.data[p + 3] = 0;
-              }
+          if (!mask) return;
+
+          const data = mask.getAsUint8Array();
+          const totalPixels = data.length;
+          let hairPixels = 0;
+          const img = ctx.createImageData(overlay.width, overlay.height);
+
+          for (let i = 0; i < totalPixels; i++) {
+            const p = i * 4;
+            if (data[i] === HAIR_CLASS) {
+              hairPixels++;
+              img.data[p] = EMERAUDE[0];
+              img.data[p + 1] = EMERAUDE[1];
+              img.data[p + 2] = EMERAUDE[2];
+              img.data[p + 3] = 110;
+            } else {
+              img.data[p + 3] = 0;
             }
-            ctx.putImageData(img, 0, 0);
-            mask.close();
+          }
+
+          ctx.putImageData(img, 0, 0);
+          mask.close();
+
+          const ratio = hairPixels / totalPixels;
+          if (ratio >= MIN_HAIR_RATIO && !capturingRef.current) {
+            stableFramesRef.current += 1;
+            const progress = Math.min(stableFramesRef.current / STABLE_FRAMES, 1);
+            setAlignProgress(progress);
+            setStatus("aligning");
+            if (stableFramesRef.current >= STABLE_FRAMES) {
+              doCapture();
+            }
+          } else {
+            stableFramesRef.current = 0;
+            setAlignProgress(0);
+            if (!capturingRef.current) setStatus("ready");
           }
         });
       } catch {
         // frame skip
-      }
-
-      // Auto-capture prise 1 (face) : alignement du visage
-      if (photosRef.current.length === 0 && face && !capturingRef.current) {
-        try {
-          const faceRes = face.detectForVideo(video, now);
-          const ok = isWellAligned(faceRes);
-          if (ok) {
-            alignedFramesRef.current += 1;
-            const progress = Math.min(alignedFramesRef.current / ALIGN_THRESHOLD, 1);
-            setAlignProgress(progress);
-            setStatus("aligning");
-            if (alignedFramesRef.current >= ALIGN_THRESHOLD) {
-              doCapture();
-            }
-          } else {
-            alignedFramesRef.current = 0;
-            setAlignProgress(0);
-            setStatus("ready");
-          }
-        } catch {
-          // face detection skip
-        }
       }
     }
 
@@ -176,11 +176,10 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
         await video.play();
 
         if (!mounted) return;
-        setLoadingMsg("Chargement des modèles IA...");
+        setLoadingMsg("Chargement du modèle IA...");
 
         const vision = await FilesetResolver.forVisionTasks(WASM);
 
-        // Segmenter (GPU fallback CPU)
         try {
           segmenterRef.current = await ImageSegmenter.createFromOptions(vision, {
             baseOptions: { modelAssetPath: HAIR_MODEL, delegate: "GPU" },
@@ -195,25 +194,6 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
             outputCategoryMask: true,
             outputConfidenceMasks: false,
           });
-        }
-
-        // Face Landmarker (GPU fallback CPU)
-        try {
-          faceRef.current = await FaceLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: FACE_MODEL, delegate: "GPU" },
-            runningMode: "VIDEO",
-            numFaces: 1,
-          });
-        } catch {
-          try {
-            faceRef.current = await FaceLandmarker.createFromOptions(vision, {
-              baseOptions: { modelAssetPath: FACE_MODEL },
-              runningMode: "VIDEO",
-              numFaces: 1,
-            });
-          } catch {
-            // Face detection optional, continue without it
-          }
         }
 
         if (!mounted) return;
@@ -257,7 +237,6 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
 
         {flash && <div className="absolute inset-0 bg-white/30 transition-opacity duration-300" />}
 
-        {/* Grille de cadrage */}
         {(status === "ready" || status === "aligning") && (
           <div className="pointer-events-none absolute inset-0">
             <div className="absolute inset-[15%] rounded-full border-2 border-accent/30" />
@@ -266,8 +245,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           </div>
         )}
 
-        {/* Anneau de progression auto-capture (prise 1) */}
-        {phase === 0 && status === "aligning" && (
+        {status === "aligning" && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <svg className="h-48 w-48" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="45" fill="none" stroke="var(--accent)" strokeWidth="3" strokeOpacity="0.2" />
@@ -283,7 +261,6 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           </div>
         )}
 
-        {/* Texte de statut */}
         <div className="absolute bottom-4 left-0 right-0 text-center">
           {status === "loading" && (
             <div className="flex flex-col items-center gap-2">
@@ -315,7 +292,6 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           )}
         </div>
 
-        {/* Bouton capture manuelle (toujours dispo en fallback) */}
         {(status === "ready" || status === "aligning") && (
           <button
             onClick={doCapture}
@@ -328,22 +304,4 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
       </div>
     </div>
   );
-}
-
-function isWellAligned(res: ReturnType<FaceLandmarker["detectForVideo"]>): boolean {
-  if (!res?.faceLandmarks?.length) return false;
-  const lm = res.faceLandmarks[0];
-  let minX = 1, maxX = 0, minY = 1, maxY = 0;
-  for (const p of lm) {
-    minX = Math.min(minX, p.x);
-    maxX = Math.max(maxX, p.x);
-    minY = Math.min(minY, p.y);
-    maxY = Math.max(maxY, p.y);
-  }
-  const cx = (minX + maxX) / 2;
-  const cy = (minY + maxY) / 2;
-  const boxW = maxX - minX;
-  const centered = Math.abs(cx - 0.5) < 0.2 && Math.abs(cy - 0.5) < 0.2;
-  const bigEnough = boxW > 0.2;
-  return centered && bigEnough;
 }
