@@ -302,7 +302,7 @@ export default function HairScanner({ phase, onCapture, onReady, onError }: Prop
       </div>
 
       {/* Bouton capture manuelle */}
-      {(phase === "top" || (phase === "face" && status === "ready")) && (status === "ready") && (
+      {(status === "ready" || status === "aligning") && (
         <button
           onClick={capture}
           className="absolute bottom-16 left-1/2 -translate-x-1/2 flex h-16 w-16 items-center justify-center rounded-full border-4 border-accent bg-accent/20 transition-transform active:scale-95"
