@@ -78,22 +78,7 @@ export default function Scan() {
       trackEvent("photo_uploaded");
       trackEvent("scan_started");
 
-      // Upload photo — generate temp ID for storage path
-      const tempId = crypto.randomUUID();
-      const path = `${user.id}/${tempId}/original.jpg`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("scalp-photos")
-        .upload(path, fileRef.current, { contentType: "image/jpeg" });
-
-      if (uploadError) {
-        const { error: fallback } = await supabase.storage
-          .from("photos")
-          .upload(path, fileRef.current, { contentType: "image/jpeg" });
-        if (fallback) throw new Error(fallback.message);
-      }
-
-      // Call analysis API (also saves to DB)
+      // Send photo to server (handles upload + analysis + DB save)
       const formData = new FormData();
       formData.append("photo", fileRef.current);
 
@@ -119,12 +104,8 @@ export default function Scan() {
         return;
       }
 
-      const scanId = result.scanId || tempId;
-
-      // Update scan record with photo path
-      if (result.scanId) {
-        await supabase.from("scans").update({ photo_path: path }).eq("id", result.scanId);
-      }
+      const scanId = result.scanId;
+      const photoPath = result.photoPath;
 
       // Wait for minimum animation time
       const elapsed = Date.now() - animStart;
@@ -137,14 +118,16 @@ export default function Scan() {
       trackEvent("scan_completed", { score: result.score });
 
       sessionStorage.setItem("scanResult", JSON.stringify(result));
-      sessionStorage.setItem("scanPhotoPath", path);
+      if (photoPath) sessionStorage.setItem("scanPhotoPath", photoPath);
 
       // Trigger projection async (non-blocking)
-      fetch("/api/projection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scanId, photoPath: path }),
-      }).catch(() => {});
+      if (scanId && photoPath) {
+        fetch("/api/projection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scanId, photoPath }),
+        }).catch(() => {});
+      }
 
       setTimeout(() => router.push("/resultat"), 600);
     } catch (err: unknown) {
@@ -171,7 +154,7 @@ export default function Scan() {
     <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
       <div className="w-full max-w-lg space-y-6 animate-fade-in">
         <div>
-          <h1 className="text-[26px] font-bold text-text">
+          <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">
             Ton scan capillaire
           </h1>
           <p className="mt-2 text-text-muted">

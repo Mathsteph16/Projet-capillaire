@@ -119,7 +119,7 @@ export default function Onboarding() {
         >
           {!isSignup ? (
             <div className="space-y-6">
-              <h1 className="text-[26px] font-bold leading-[1.2] text-text">
+              <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
                 {QUIZ[step].question}
               </h1>
 
@@ -142,7 +142,7 @@ export default function Onboarding() {
             </div>
           ) : (
             <div className="space-y-6">
-              <h1 className="text-[26px] font-bold leading-[1.2] text-text">
+              <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
                 Parfait. On a ce qu'il faut pour personnaliser ton bilan.
               </h1>
               <p className="text-base text-text-muted">

@@ -3,21 +3,54 @@
 import Link from "next/link";
 import { Gauge, Disclaimer } from "@/components/ui";
 import { trackEvent } from "@/lib/track";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
-function CtaButton({ className = "" }: { className?: string }) {
+interface HeroVariant {
+  key: string;
+  headline: string;
+  sub: string;
+  cta: string;
+}
+
+const HERO_VARIANTS: HeroVariant[] = [
+  {
+    key: "A",
+    headline: "Scanne ton crâne. Sache où tu en es, et ce vers quoi tu peux tendre.",
+    sub: "Une photo, 30 secondes. Ton score de densité, tes zones fragiles, et un objectif visuel de ta densité retrouvée. Gratuit, sans clinique.",
+    cta: "Faire mon scan gratuit",
+  },
+  {
+    key: "B",
+    headline: "Ta densité capillaire en 30 secondes. Score, zones, objectif visuel.",
+    sub: "Scanne ton cuir chevelu, reçois une analyse claire et un plan concret. Gratuit, privé, hébergé en Europe.",
+    cta: "Scanner maintenant",
+  },
+];
+
+function getVariant(): HeroVariant {
+  if (typeof window === "undefined") return HERO_VARIANTS[0];
+  const stored = sessionStorage.getItem("scalpy_ab_hero");
+  if (stored === "A" || stored === "B") {
+    return HERO_VARIANTS.find((v) => v.key === stored)!;
+  }
+  const picked = Math.random() < 0.5 ? "A" : "B";
+  sessionStorage.setItem("scalpy_ab_hero", picked);
+  return HERO_VARIANTS.find((v) => v.key === picked)!;
+}
+
+function CtaButton({ className = "", variant }: { className?: string; variant?: string }) {
   return (
     <Link
       href="/onboarding"
-      onClick={() => trackEvent("cta_scan_click")}
+      onClick={() => trackEvent("cta_scan_click", variant ? { variant } : undefined)}
       className={`inline-block rounded-[16px] bg-accent px-8 py-4 text-lg font-semibold text-[#06231A] shadow-[0_0_32px_rgba(22,185,129,0.15)] transition-all hover:bg-accent-hover hover:shadow-[0_0_48px_rgba(22,185,129,0.25)] ${className}`}
     >
-      Faire mon scan gratuit
+      {variant ? HERO_VARIANTS.find((v) => v.key === variant)?.cta ?? "Faire mon scan gratuit" : "Faire mon scan gratuit"}
     </Link>
   );
 }
 
-function StickyCtaBar() {
+function StickyCtaBar({ variant }: { variant?: string }) {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -37,29 +70,40 @@ function StickyCtaBar() {
     <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-surface/95 p-3 backdrop-blur-md sm:hidden">
       <Link
         href="/onboarding"
-        onClick={() => trackEvent("cta_scan_click")}
+        onClick={() => trackEvent("cta_scan_click", variant ? { variant } : undefined)}
         className="block w-full rounded-[16px] bg-accent py-3.5 text-center text-base font-semibold text-[#06231A]"
       >
-        Faire mon scan gratuit
+        {variant ? HERO_VARIANTS.find((v) => v.key === variant)?.cta ?? "Faire mon scan gratuit" : "Faire mon scan gratuit"}
       </Link>
     </div>
   );
 }
 
 export default function Home() {
+  const [hero, setHero] = useState(HERO_VARIANTS[0]);
+  const tracked = useRef(false);
+
+  useEffect(() => {
+    const v = getVariant();
+    setHero(v);
+    if (!tracked.current) {
+      tracked.current = true;
+      trackEvent("hero_viewed", { variant: v.key });
+    }
+  }, []);
+
   return (
     <main className="flex flex-col">
       {/* Hero */}
       <section id="hero" className="flex flex-col items-center px-5 pb-16 pt-20 sm:pt-28">
-        <h1 className="max-w-2xl text-center text-[34px] font-bold leading-[1.1] tracking-[-0.01em] text-text sm:text-[44px]">
-          Scanne ton crâne. Sache où tu en es, et ce vers quoi tu peux tendre.
+        <h1 className="max-w-2xl text-center font-display text-[34px] font-semibold leading-[1.08] tracking-[-0.02em] text-text sm:text-[44px]">
+          {hero.headline}
         </h1>
         <p className="mx-auto mt-6 max-w-lg text-center text-base leading-relaxed text-text-muted">
-          Une photo, 30 secondes. Ton score de densité, tes zones fragiles, et
-          un objectif visuel de ta densité retrouvée. Gratuit, sans clinique.
+          {hero.sub}
         </p>
         <div className="mt-10">
-          <CtaButton />
+          <CtaButton variant={hero.key} />
         </div>
         <p className="mt-4 text-center text-xs text-text-faint">
           Gratuit · 30 secondes · Tes photos restent privées
@@ -87,7 +131,7 @@ export default function Home() {
       {/* Comment ça marche */}
       <section className="px-5 py-20">
         <div className="mx-auto max-w-3xl">
-          <h2 className="text-center text-[20px] font-semibold text-text sm:text-[26px]">
+          <h2 className="text-center font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
             Comment ça marche
           </h2>
           <div className="mt-12 grid gap-8 sm:grid-cols-3">
@@ -123,7 +167,7 @@ export default function Home() {
       {/* Demo du scan */}
       <section className="border-y border-border bg-surface/50 px-5 py-20">
         <div className="mx-auto max-w-xl text-center">
-          <h2 className="text-[20px] font-semibold text-text sm:text-[26px]">
+          <h2 className="font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
             Le scan qui te dit tout
           </h2>
           <p className="mt-3 text-sm text-text-muted">
@@ -139,7 +183,7 @@ export default function Home() {
       {/* Bénéfices */}
       <section className="px-5 py-20">
         <div className="mx-auto max-w-3xl">
-          <h2 className="text-center text-[20px] font-semibold text-text sm:text-[26px]">
+          <h2 className="text-center font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
             Ce que tu y gagnes
           </h2>
           <div className="mt-12 grid gap-6 sm:grid-cols-2">
@@ -183,7 +227,7 @@ export default function Home() {
       {/* FAQ */}
       <section className="px-5 py-20">
         <div className="mx-auto max-w-2xl">
-          <h2 className="text-center text-[20px] font-semibold text-text sm:text-[26px]">
+          <h2 className="text-center font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
             Les questions que tu te poses
           </h2>
           <div className="mt-10 space-y-3">
@@ -230,14 +274,14 @@ export default function Home() {
       {/* CTA final */}
       <section className="px-5 py-24">
         <div className="mx-auto max-w-lg text-center">
-          <h2 className="text-[20px] font-semibold text-text sm:text-[26px]">
+          <h2 className="font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
             Prêt à savoir où tu en es ?
           </h2>
           <p className="mt-4 text-text-muted">
             Une photo, 30 secondes. Tu verras.
           </p>
           <div className="mt-8">
-            <CtaButton />
+            <CtaButton variant={hero.key} />
           </div>
         </div>
       </section>
@@ -245,7 +289,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-border px-5 py-8">
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 sm:flex-row">
-          <p className="text-sm font-bold tracking-[-0.01em] text-text-faint">Scalpy</p>
+          <p className="font-display text-sm font-semibold tracking-[-0.02em] text-text-faint">Scalpy</p>
           <div className="flex flex-wrap justify-center gap-6 text-xs text-text-faint">
             <Link href="/mentions-legales" className="transition-colors hover:text-text-muted">
               Mentions légales
@@ -264,7 +308,7 @@ export default function Home() {
       </footer>
 
       <Disclaimer className="mx-auto mb-6 justify-center" />
-      <StickyCtaBar />
+      <StickyCtaBar variant={hero.key} />
     </main>
   );
 }

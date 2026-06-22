@@ -167,7 +167,7 @@ export default function Resultat() {
       <div className="w-full max-w-lg space-y-6 animate-fade-in">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-[26px] font-bold text-text">Ton résultat</h1>
+          <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">Ton résultat</h1>
           <p className="mt-1 text-sm text-text-muted">
             Voici où tu en es — c'est ton point de départ.
           </p>
@@ -194,7 +194,7 @@ export default function Resultat() {
             </p>
             <div className="mt-4 flex gap-1">
               {["I", "II", "III", "IV", "V", "VI", "VII"].map((s) => (
-                <div key={s} className={`flex h-8 flex-1 items-center justify-center rounded-[8px] text-xs font-medium transition-all ${
+                <div key={s} className={`flex h-8 flex-1 items-center justify-center rounded-[8px] font-data text-xs font-medium transition-all ${
                   s === result.norwood ? "bg-accent text-[#06231A]" : "bg-border/50 text-text-faint"
                 }`}>
                   {s}

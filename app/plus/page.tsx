@@ -56,7 +56,7 @@ export default function Plus() {
     <main className="flex flex-1 flex-col items-center px-5 py-10">
       <div className="w-full max-w-3xl space-y-8 animate-fade-in">
         <div className="text-center">
-          <h1 className="text-[26px] font-bold text-text sm:text-[34px]">
+          <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text sm:text-[34px]">
             {title}
           </h1>
           <p className="mt-2 text-text-muted">

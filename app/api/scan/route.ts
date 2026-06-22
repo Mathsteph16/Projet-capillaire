@@ -112,6 +112,34 @@ async function callAnalysis(
   return validated;
 }
 
+export async function DELETE(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  const { scanId } = await request.json();
+  if (!scanId) return NextResponse.json({ error: "scanId manquant" }, { status: 400 });
+
+  const admin = createAdminClient();
+
+  const { data: scan } = await admin.from("scans")
+    .select("id, photo_path, user_id")
+    .eq("id", scanId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (!scan) return NextResponse.json({ error: "Scan introuvable" }, { status: 404 });
+
+  if (scan.photo_path) {
+    await admin.storage.from("scalp-photos").remove([scan.photo_path]);
+  }
+
+  await admin.from("projections").delete().eq("scan_id", scanId);
+  await admin.from("scans").delete().eq("id", scanId);
+
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(request: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -147,13 +175,21 @@ export async function POST(request: Request) {
       result = await callAnalysis(client, base64, mediaType, model, true);
     }
 
-    // Save scan to database
+    // Save scan to database + upload photo server-side
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     let scanId: string | undefined;
+    let photoPath: string | undefined;
     if (user) {
       const admin = createAdminClient();
+      const tempId = crypto.randomUUID();
+      photoPath = `${user.id}/${tempId}/original.jpg`;
+
+      await admin.storage
+        .from("scalp-photos")
+        .upload(photoPath, Buffer.from(bytes), { contentType: "image/jpeg" });
+
       const { data: scan } = await admin.from("scans").insert({
         user_id: user.id,
         score: result.score,
@@ -164,6 +200,7 @@ export async function POST(request: Request) {
         raw_analysis: result,
         status: result.usable ? "done" : "unusable",
         prompt_version: PROMPT_VERSION,
+        photo_path: photoPath,
       }).select("id").single();
       scanId = scan?.id;
     }
@@ -171,6 +208,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ...result,
       scanId,
+      photoPath,
       prompt_version: PROMPT_VERSION,
     });
   } catch (err: unknown) {

@@ -12,7 +12,7 @@ function AuthInner() {
     <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
       <div className="w-full max-w-sm space-y-6 animate-fade-in">
         <div>
-          <h1 className="text-[26px] font-bold text-text">
+          <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">
             Content de te revoir
           </h1>
           <p className="mt-1 text-sm text-text-muted">

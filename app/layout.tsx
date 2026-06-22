@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
 import Nav from "@/components/nav";
 import MobileNav from "@/components/mobile-nav";
@@ -11,6 +11,20 @@ const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
   display: "swap",
+});
+
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-display",
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
@@ -53,15 +67,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className={`${inter.variable} h-full antialiased`}>
+    <html lang="fr" className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans pb-16 sm:pb-0">
         <header className="sticky top-0 z-50 border-b border-border bg-surface/80 backdrop-blur-md">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-3">
             <Link
               href="/"
-              className="text-xl font-bold tracking-[-0.01em] text-text"
+              className="flex items-center gap-2.5 text-text"
             >
-              Scalpy
+              <svg width="28" height="28" viewBox="0 0 56 56" fill="none" aria-label="Scalpy">
+                <circle cx="28" cy="28" r="22" stroke="#34D399" strokeOpacity=".25"/>
+                <circle cx="28" cy="28" r="14" stroke="#34D399" strokeOpacity=".45"/>
+                <circle cx="28" cy="28" r="3.4" fill="#34D399"/>
+                <line x1="6" y1="28" x2="50" y2="28" stroke="#34D399" strokeWidth="1.6"/>
+              </svg>
+              <span className="font-display text-xl font-semibold tracking-[-0.02em]">Scalpy</span>
             </Link>
             <Nav />
           </div>

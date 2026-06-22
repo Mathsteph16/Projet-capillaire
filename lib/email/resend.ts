@@ -25,7 +25,7 @@ export async function sendEmail({ to, subject, html }: SendEmailInput) {
 }
 
 function wrap(content: string): string {
-  return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0E0F12;color:#F2F3F5;padding:32px 20px;max-width:480px;margin:0 auto;"><div style="background:#16181D;border-radius:16px;padding:24px;">${content}</div><p style="color:#6B7178;font-size:12px;text-align:center;margin-top:20px;">Scalpy — Estimation de bien-être, pas un avis médical.<br/><a href="${APP_URL}/confidentialite" style="color:#9AA0A8;">Confidentialité</a></p></body></html>`;
+  return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0E0F12;color:#F2F3F5;padding:32px 20px;max-width:480px;margin:0 auto;"><div style="background:#16181D;border-radius:16px;padding:24px;">${content}</div><p style="color:#6B7178;font-size:12px;text-align:center;margin-top:20px;">Scalpy — Estimation de bien-être, pas un avis médical.<br/><a href="${APP_URL}/confidentialite" style="color:#9AA0A8;">Confidentialité</a> · <a href="${APP_URL}/api/unsubscribe" style="color:#9AA0A8;">Se désinscrire</a></p></body></html>`;
 }
 
 function cta(label: string, href: string): string {
@@ -75,6 +75,6 @@ export function emailRescanReminder(): { subject: string; html: string } {
 export function emailWinback(): { subject: string; html: string } {
   return {
     subject: "Reprends ton suivi quand tu veux.",
-    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Ton suivi t'attend</h1><p style="color:#9AA0A8;">Tes scans et ta progression sont toujours là. Tu peux reprendre quand tu veux, à ton rythme.</p>${cta("Réactiver mon plan", "/plus")}<p style="color:#6B7178;font-size:12px;margin-top:16px;"><a href="${APP_URL}/api/unsubscribe" style="color:#6B7178;">Se désinscrire des emails marketing</a></p>`),
+    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Ton suivi t'attend</h1><p style="color:#9AA0A8;">Tes scans et ta progression sont toujours là. Tu peux reprendre quand tu veux, à ton rythme.</p>${cta("Réactiver mon plan", "/plus")}`),
   };
 }

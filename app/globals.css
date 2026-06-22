@@ -10,6 +10,8 @@
   --text-faint: #6B7178;
   --accent: #16B981;
   --accent-hover: #13A574;
+  --accent-pressed: #0E9268;
+  --accent-light: #34D399;
   --accent-soft: rgba(22, 185, 129, 0.12);
   --signal: #F5A524;
   --danger: #E5484D;
@@ -30,12 +32,16 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-pressed: var(--accent-pressed);
+  --color-accent-light: var(--accent-light);
   --color-signal: var(--signal);
   --color-danger: var(--danger);
   --color-foreground: var(--text);
   --color-background: var(--bg);
   --color-muted: var(--text-muted);
   --font-sans: "var(--font-inter)", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "var(--font-display)", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-data: "var(--font-mono)", "JetBrains Mono", ui-monospace, monospace;
   --shadow-card: var(--shadow-card);
   --shadow-pop: var(--shadow-pop);
   --shadow-accent-glow: var(--shadow-accent-glow);

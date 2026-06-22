@@ -45,9 +45,9 @@ function PriceCard({
           <Badge variant={featured ? "accent" : "signal"}>{badge}</Badge>
         </div>
       )}
-      <h3 className="text-lg font-semibold text-text">{name}</h3>
+      <h3 className="font-display text-lg font-semibold tracking-[-0.01em] text-text">{name}</h3>
       <div className="mt-3 flex items-baseline gap-1">
-        <span className="text-[34px] font-bold leading-none text-text">{price}</span>
+        <span className="font-data text-[34px] font-medium leading-none text-text">{price}</span>
         {period && <span className="text-sm text-text-muted">/{period}</span>}
       </div>
       {equivalent && (

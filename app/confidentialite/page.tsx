@@ -9,7 +9,7 @@ export default function Confidentialite() {
   return (
     <main className="flex flex-1 flex-col items-center px-5 py-12">
       <article className="w-full max-w-2xl space-y-8 text-sm leading-relaxed text-muted">
-        <h1 className="text-2xl font-semibold text-foreground">
+        <h1 className="font-display text-2xl font-semibold tracking-[-0.01em] text-foreground">
           Politique de confidentialité
         </h1>
 

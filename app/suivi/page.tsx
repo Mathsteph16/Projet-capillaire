@@ -47,7 +47,7 @@ export default function Suivi() {
     <main className="flex flex-1 flex-col items-center px-5 py-10">
       <div className="w-full max-w-lg space-y-6 animate-fade-in">
         <div>
-          <h1 className="text-[26px] font-bold text-text">Ton suivi</h1>
+          <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">Ton suivi</h1>
           <p className="text-sm text-text-muted">
             {scans.length === 0
               ? "Fais ton premier scan pour commencer."
@@ -89,17 +89,17 @@ export default function Suivi() {
             {/* Stats */}
             <div className="grid grid-cols-3 gap-3">
               <Card className="text-center">
-                <p className="text-[20px] font-bold text-text">{latest!.score}</p>
+                <p className="font-data text-[20px] font-medium text-text">{latest!.score}</p>
                 <p className="text-xs text-text-faint">Dernier score</p>
               </Card>
               <Card className="text-center">
-                <p className={`text-[20px] font-bold ${trend! > 0 ? "text-accent" : trend! < 0 ? "text-signal" : "text-text"}`}>
+                <p className={`font-data text-[20px] font-medium ${trend! > 0 ? "text-accent" : trend! < 0 ? "text-signal" : "text-text"}`}>
                   {trend! > 0 ? "+" : ""}{trend}
                 </p>
                 <p className="text-xs text-text-faint">Évolution</p>
               </Card>
               <Card className="text-center">
-                <p className="text-[20px] font-bold text-text">{scans.length}</p>
+                <p className="font-data text-[20px] font-medium text-text">{scans.length}</p>
                 <p className="text-xs text-text-faint">Scans</p>
               </Card>
             </div>
@@ -112,7 +112,7 @@ export default function Suivi() {
               <div className="flex items-end gap-2 h-32">
                 {scans.map((scan) => (
                   <div key={scan.id} className="flex flex-1 flex-col items-center gap-1">
-                    <span className="text-xs text-text-faint">{scan.score}</span>
+                    <span className="font-data text-xs text-text-faint">{scan.score}</span>
                     <div
                       className="w-full rounded-t-[8px] bg-accent"
                       style={{ height: `${(scan.score / 100) * 100}%` }}
@@ -146,7 +146,7 @@ export default function Suivi() {
                     })}
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-text">{scan.score}/100</span>
+                    <span className="font-data text-sm font-medium text-text">{scan.score}/100</span>
                     {scan.norwood && <Badge variant="accent">{scan.norwood}</Badge>}
                   </div>
                 </div>

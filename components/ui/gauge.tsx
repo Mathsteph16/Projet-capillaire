@@ -56,10 +56,10 @@ function Gauge({ score, label = "Score de densité" }: GaugeProps) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[34px] font-bold leading-none" style={{ color }}>
+        <span className="font-data text-[34px] font-medium leading-none" style={{ color }}>
           {animated}
         </span>
-        <span className="mt-1 text-sm text-text-muted">/100</span>
+        <span className="mt-1 font-data text-sm text-text-muted">/100</span>
       </div>
       <p className="mt-2 text-xs font-medium text-text-faint">{label}</p>
     </div>

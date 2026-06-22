@@ -48,7 +48,7 @@ export default function Success() {
         {status === "checking" && (
           <>
             <div className="mx-auto h-2 w-2 animate-pulse rounded-full bg-accent" />
-            <h1 className="text-[26px] font-bold text-text">Activation en cours</h1>
+            <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">Activation en cours</h1>
             <p className="text-sm text-text-muted">
               On prépare ton espace. Ça ne prend que quelques secondes.
             </p>
@@ -61,7 +61,7 @@ export default function Success() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             </div>
-            <h1 className="text-[26px] font-bold text-text">C'est bon !</h1>
+            <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">C'est bon !</h1>
             <p className="text-sm text-text-muted">
               Ton plan est activé. Redirection vers ton espace...
             </p>
@@ -69,7 +69,7 @@ export default function Success() {
         )}
         {status === "pending" && (
           <>
-            <h1 className="text-[26px] font-bold text-text">
+            <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">
               Presque prêt
             </h1>
             <p className="text-sm text-text-muted">

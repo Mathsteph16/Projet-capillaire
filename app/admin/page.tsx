@@ -16,6 +16,8 @@ interface TunnelStats {
   active_subs: number;
   canceled_subs: number;
   rescan_count: number;
+  arpu: number;
+  variants: Record<string, { views: number; purchases: number }>;
 }
 
 const TUNNEL_STEPS = [
@@ -49,7 +51,7 @@ export default function AdminPage() {
     <main className="flex flex-1 flex-col items-center px-5 py-10">
       <div className="w-full max-w-2xl space-y-6 animate-fade-in">
         <div className="flex items-center justify-between">
-          <h1 className="text-[26px] font-bold text-text">Admin</h1>
+          <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">Admin</h1>
           <select
             value={period}
             onChange={(e) => setPeriod(Number(e.target.value))}
@@ -67,18 +69,22 @@ export default function AdminPage() {
         {stats && (
           <>
             {/* Key metrics */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Card className="text-center">
-                <p className="text-[20px] font-bold text-accent">{stats.active_subs}</p>
+                <p className="font-data text-[20px] font-medium text-accent">{stats.active_subs}</p>
                 <p className="text-xs text-text-faint">Abonnés actifs</p>
               </Card>
               <Card className="text-center">
-                <p className="text-[20px] font-bold text-text">{stats.canceled_subs}</p>
+                <p className="font-data text-[20px] font-medium text-text">{stats.canceled_subs}</p>
                 <p className="text-xs text-text-faint">Résiliés</p>
               </Card>
               <Card className="text-center">
-                <p className="text-[20px] font-bold text-text">{stats.rescan_count}</p>
+                <p className="font-data text-[20px] font-medium text-text">{stats.rescan_count}</p>
                 <p className="text-xs text-text-faint">Re-scans</p>
+              </Card>
+              <Card className="text-center">
+                <p className="font-data text-[20px] font-medium text-signal">{stats.arpu.toFixed(2)} EUR</p>
+                <p className="text-xs text-text-faint">ARPU</p>
               </Card>
             </div>
 
@@ -111,6 +117,39 @@ export default function AdminPage() {
                 })}
               </div>
             </Card>
+
+            {/* A/B Variants */}
+            {Object.keys(stats.variants).length > 0 && (
+              <Card>
+                <h2 className="mb-4 text-[17px] font-semibold text-text">
+                  Variants A/B
+                </h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-text-muted">
+                        <th className="pb-2 font-medium">Variant</th>
+                        <th className="pb-2 text-right font-medium">Vues</th>
+                        <th className="pb-2 text-right font-medium">Achats</th>
+                        <th className="pb-2 text-right font-medium">Conv.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(stats.variants).map(([name, v]) => (
+                        <tr key={name} className="border-b border-border/50">
+                          <td className="py-2 text-text">{name}</td>
+                          <td className="py-2 text-right text-text-muted">{v.views}</td>
+                          <td className="py-2 text-right text-text-muted">{v.purchases}</td>
+                          <td className="py-2 text-right font-semibold text-accent">
+                            {v.views > 0 ? ((v.purchases / v.views) * 100).toFixed(1) : "0.0"}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            )}
           </>
         )}
       </div>
