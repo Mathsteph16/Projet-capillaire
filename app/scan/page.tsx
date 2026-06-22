@@ -53,6 +53,10 @@ export default function Scan() {
 
   const handleAllCaptured = useCallback((capturedPhotos: string[]) => {
     setPhotos(capturedPhotos);
+    // Save portrait photo (3rd) for before/after slider
+    if (capturedPhotos[2]) {
+      sessionStorage.setItem("portraitPhoto", capturedPhotos[2]);
+    }
     trackEvent("scan_captured", { photos: capturedPhotos.length });
     setStep("processing");
   }, []);

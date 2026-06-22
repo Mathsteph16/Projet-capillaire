@@ -28,8 +28,9 @@ type Props = {
 };
 
 const PHASES = [
-  { title: "Scan 1 sur 2 — Face", heading: "Regarde la caméra, visage bien droit", label: "Scan du front et des golfes en cours" },
-  { title: "Scan 2 sur 2 — Dessus", heading: "Penche la tête vers l'avant", label: "Scan de la couronne et du vertex en cours" },
+  { title: "Scan 1 sur 3 — Face", heading: "Regarde la caméra, visage bien droit", label: "Scan du front et des golfes en cours", auto: true },
+  { title: "Scan 2 sur 3 — Dessus", heading: "Penche la tête vers l'avant", label: "Scan de la couronne et du vertex en cours", auto: true },
+  { title: "Photo 3 sur 3 — Portrait", heading: "Recule pour montrer ta tête entière", label: "Appuie pour prendre la photo", auto: false },
 ];
 
 type Landmark = { x: number; y: number; z: number };
@@ -150,10 +151,11 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
             drawFaceMesh(ctx, lm, overlay.width, overlay.height);
           }
 
-          // Auto-capture based on hair density (after grace period)
+          // Auto-capture based on hair density (only on auto phases, after grace period)
+          const currentAutoPhase = PHASES[phaseRef.current]?.auto;
           const elapsed = now - phaseStartTimeRef.current;
           const ratio = hairPixels / totalPixels;
-          if (ratio >= MIN_HAIR_RATIO && !capturingRef.current && elapsed > GRACE_PERIOD_MS) {
+          if (currentAutoPhase && ratio >= MIN_HAIR_RATIO && !capturingRef.current && elapsed > GRACE_PERIOD_MS) {
             stableFramesRef.current += 1;
             const progress = Math.min(stableFramesRef.current / STABLE_FRAMES, 1);
             setAlignProgress(progress);

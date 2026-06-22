@@ -81,6 +81,10 @@ export default function Resultat() {
   useEffect(() => {
     trackEvent("result_viewed");
 
+    // Portrait photo (3rd capture) for before/after slider
+    const portraitPhoto = sessionStorage.getItem("portraitPhoto");
+    if (portraitPhoto) setOriginalUrl(portraitPhoto);
+
     const supabase = createClient();
 
     async function loadProjection(userId: string, scanId: string) {
