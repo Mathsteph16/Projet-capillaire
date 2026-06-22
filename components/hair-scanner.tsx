@@ -17,9 +17,10 @@ const FACE_MODEL =
 
 const HAIR_CLASS = 1;
 const EMERAUDE = [22, 185, 129];
-const STABLE_FRAMES = 20;
-const MIN_HAIR_RATIO = 0.04;
+const STABLE_FRAMES = 60;
+const MIN_HAIR_RATIO = 0.06;
 const FACE_DETECT_INTERVAL = 100;
+const GRACE_PERIOD_MS = 3000;
 
 type Props = {
   onAllCaptured: (photos: string[]) => void;
@@ -27,8 +28,8 @@ type Props = {
 };
 
 const PHASES = [
-  { title: "Prise 1 sur 2", heading: "Cadre ton visage de face", label: "Centre ton visage" },
-  { title: "Prise 2 sur 2", heading: "Penche la tête et montre le sommet", label: "Montre le sommet de ton crâne" },
+  { title: "Scan 1 sur 2 — Face", heading: "Regarde la caméra, visage bien droit", label: "Scan du front et des golfes en cours" },
+  { title: "Scan 2 sur 2 — Dessus", heading: "Penche la tête vers l'avant", label: "Scan de la couronne et du vertex en cours" },
 ];
 
 type Landmark = { x: number; y: number; z: number };
@@ -48,8 +49,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
   const capturingRef = useRef(false);
   const phaseRef = useRef(0);
   const landmarksRef = useRef<Landmark[] | null>(null);
-  const lastMaskRef = useRef<Uint8Array | null>(null);
-  const lastMaskSizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
+  const phaseStartTimeRef = useRef<number>(0);
 
   const [status, setStatus] = useState<"loading" | "ready" | "aligning" | "captured" | "error">("loading");
   const [loadingMsg, setLoadingMsg] = useState("Préparation de la caméra...");
@@ -69,21 +69,6 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
     cCtx.drawImage(video, 0, 0, c.width, c.height);
     const dataUrl = c.toDataURL("image/jpeg", 0.92);
 
-    // Generate client-side projection for first capture (face photo)
-    if (photosRef.current.length === 0 && lastMaskRef.current) {
-      try {
-        const projection = generateProjection(
-          cCtx, lastMaskRef.current,
-          lastMaskSizeRef.current.w, lastMaskSizeRef.current.h,
-          c.width, c.height
-        );
-        sessionStorage.setItem("clientProjection", projection);
-        sessionStorage.setItem("clientOriginal", dataUrl);
-      } catch {
-        // projection generation failed, continue without
-      }
-    }
-
     setFlash(true);
     setTimeout(() => setFlash(false), 300);
 
@@ -97,6 +82,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
         stableFramesRef.current = 0;
         setAlignProgress(0);
         landmarksRef.current = null;
+        phaseStartTimeRef.current = performance.now();
         capturingRef.current = false;
       }, 600);
     } else {
@@ -156,10 +142,6 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
 
           ctx.putImageData(img, 0, 0);
 
-          // Save mask for projection generation
-          lastMaskRef.current = new Uint8Array(data);
-          lastMaskSizeRef.current = { w: mask.width, h: mask.height };
-
           mask.close();
 
           // Draw face mesh
@@ -168,9 +150,10 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
             drawFaceMesh(ctx, lm, overlay.width, overlay.height);
           }
 
-          // Auto-capture based on hair density
+          // Auto-capture based on hair density (after grace period)
+          const elapsed = now - phaseStartTimeRef.current;
           const ratio = hairPixels / totalPixels;
-          if (ratio >= MIN_HAIR_RATIO && !capturingRef.current) {
+          if (ratio >= MIN_HAIR_RATIO && !capturingRef.current && elapsed > GRACE_PERIOD_MS) {
             stableFramesRef.current += 1;
             const progress = Math.min(stableFramesRef.current / STABLE_FRAMES, 1);
             setAlignProgress(progress);
@@ -277,6 +260,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
         if (!mounted) return;
         clearTimeout(timeout);
         setStatus("ready");
+        phaseStartTimeRef.current = performance.now();
         rafRef.current = requestAnimationFrame(renderLoop);
       } catch (e) {
         console.error("HairScanner error:", e);
@@ -347,7 +331,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           )}
           {status === "aligning" && (
             <span className="rounded-full bg-accent/20 px-4 py-1.5 text-sm font-semibold text-accent backdrop-blur-sm">
-              Ne bouge pas
+              Analyse en cours, ne bouge pas
             </span>
           )}
           {status === "captured" && (
@@ -412,107 +396,3 @@ function drawFaceMesh(
   ctx.stroke();
 }
 
-function generateProjection(
-  photoCtx: CanvasRenderingContext2D,
-  maskData: Uint8Array,
-  maskW: number,
-  maskH: number,
-  photoW: number,
-  photoH: number,
-): string {
-  const imageData = photoCtx.getImageData(0, 0, photoW, photoH);
-  const px = imageData.data;
-
-  // Scale factors (mask may be 256x256, photo may be 1280x720)
-  const sx = maskW / photoW;
-  const sy = maskH / photoH;
-
-  // Compute average hair color
-  let rSum = 0, gSum = 0, bSum = 0, count = 0;
-  for (let y = 0; y < photoH; y += 2) {
-    for (let x = 0; x < photoW; x += 2) {
-      const mx = Math.floor(x * sx);
-      const my = Math.floor(y * sy);
-      if (maskData[my * maskW + mx] === HAIR_CLASS) {
-        const p = (y * photoW + x) * 4;
-        rSum += px[p]; gSum += px[p + 1]; bSum += px[p + 2];
-        count++;
-      }
-    }
-  }
-  if (count === 0) return photoCtx.canvas.toDataURL("image/jpeg", 0.92);
-
-  const avgR = rSum / count;
-  const avgG = gSum / count;
-  const avgB = bSum / count;
-
-  // Create hair mask at photo resolution on an offscreen canvas
-  const hairCanvas = document.createElement("canvas");
-  hairCanvas.width = photoW;
-  hairCanvas.height = photoH;
-  const hCtx = hairCanvas.getContext("2d")!;
-  const hairImg = hCtx.createImageData(photoW, photoH);
-
-  for (let y = 0; y < photoH; y++) {
-    for (let x = 0; x < photoW; x++) {
-      const mx = Math.floor(x * sx);
-      const my = Math.floor(y * sy);
-      const p = (y * photoW + x) * 4;
-      if (maskData[my * maskW + mx] === HAIR_CLASS) {
-        hairImg.data[p] = Math.round(avgR * 0.7);
-        hairImg.data[p + 1] = Math.round(avgG * 0.7);
-        hairImg.data[p + 2] = Math.round(avgB * 0.7);
-        hairImg.data[p + 3] = 255;
-      }
-    }
-  }
-  hCtx.putImageData(hairImg, 0, 0);
-
-  // Blur to expand hair area naturally
-  const blurCanvas = document.createElement("canvas");
-  blurCanvas.width = photoW;
-  blurCanvas.height = photoH;
-  const bCtx = blurCanvas.getContext("2d")!;
-  bCtx.filter = "blur(12px)";
-  bCtx.drawImage(hairCanvas, 0, 0);
-
-  // Compose: original + blurred hair overlay
-  const resultCanvas = document.createElement("canvas");
-  resultCanvas.width = photoW;
-  resultCanvas.height = photoH;
-  const rCtx = resultCanvas.getContext("2d")!;
-
-  // Draw original
-  rCtx.drawImage(photoCtx.canvas, 0, 0);
-
-  // Darken existing hair slightly (density effect)
-  const darkCanvas = document.createElement("canvas");
-  darkCanvas.width = photoW;
-  darkCanvas.height = photoH;
-  const dCtx = darkCanvas.getContext("2d")!;
-  const darkImg = dCtx.createImageData(photoW, photoH);
-  for (let y = 0; y < photoH; y++) {
-    for (let x = 0; x < photoW; x++) {
-      const mx = Math.floor(x * sx);
-      const my = Math.floor(y * sy);
-      const p = (y * photoW + x) * 4;
-      if (maskData[my * maskW + mx] === HAIR_CLASS) {
-        darkImg.data[p] = Math.round(px[p] * 0.85);
-        darkImg.data[p + 1] = Math.round(px[p + 1] * 0.85);
-        darkImg.data[p + 2] = Math.round(px[p + 2] * 0.85);
-        darkImg.data[p + 3] = 255;
-      }
-    }
-  }
-  dCtx.putImageData(darkImg, 0, 0);
-  rCtx.globalCompositeOperation = "source-over";
-  rCtx.globalAlpha = 0.4;
-  rCtx.drawImage(darkCanvas, 0, 0);
-
-  // Add blurred hair expansion
-  rCtx.globalAlpha = 0.3;
-  rCtx.drawImage(blurCanvas, 0, 0);
-  rCtx.globalAlpha = 1.0;
-
-  return resultCanvas.toDataURL("image/jpeg", 0.90);
-}
