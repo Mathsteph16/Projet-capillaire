@@ -39,27 +39,51 @@ export default function HairScanner({ phase, onCapture, onReady, onError }: Prop
   const alignedFramesRef = useRef<number>(0);
   const capturedRef = useRef(false);
 
-  const [status, setStatus] = useState<"init" | "ready" | "aligning" | "captured" | "error">("init");
+  const [status, setStatus] = useState<"init" | "loading" | "ready" | "aligning" | "captured" | "error">("init");
+  const [loadingMsg, setLoadingMsg] = useState("Préparation de la caméra...");
   const [alignProgress, setAlignProgress] = useState(0);
 
   const ALIGN_THRESHOLD = 15;
 
   const loadModels = useCallback(async () => {
+    setLoadingMsg("Chargement du modèle d'analyse...");
     const vision = await FilesetResolver.forVisionTasks(WASM);
-    segmenterRef.current = await ImageSegmenter.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: HAIR_MODEL, delegate: "GPU" },
-      runningMode: "VIDEO",
-      outputCategoryMask: true,
-      outputConfidenceMasks: false,
-    });
-    faceRef.current = await FaceLandmarker.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: FACE_MODEL, delegate: "GPU" },
-      runningMode: "VIDEO",
-      numFaces: 1,
-    });
+
+    setLoadingMsg("Initialisation du scanner...");
+    try {
+      segmenterRef.current = await ImageSegmenter.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: HAIR_MODEL, delegate: "GPU" },
+        runningMode: "VIDEO",
+        outputCategoryMask: true,
+        outputConfidenceMasks: false,
+      });
+    } catch {
+      segmenterRef.current = await ImageSegmenter.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: HAIR_MODEL },
+        runningMode: "VIDEO",
+        outputCategoryMask: true,
+        outputConfidenceMasks: false,
+      });
+    }
+
+    setLoadingMsg("Chargement du détecteur de visage...");
+    try {
+      faceRef.current = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: FACE_MODEL, delegate: "GPU" },
+        runningMode: "VIDEO",
+        numFaces: 1,
+      });
+    } catch {
+      faceRef.current = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: FACE_MODEL },
+        runningMode: "VIDEO",
+        numFaces: 1,
+      });
+    }
   }, []);
 
   const startCamera = useCallback(async () => {
+    setLoadingMsg("Accès à la caméra...");
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: false,
@@ -100,43 +124,51 @@ export default function HairScanner({ phase, onCapture, onReady, onError }: Prop
       overlay.height = video.videoHeight;
       const ctx = overlay.getContext("2d")!;
 
-      segmenter.segmentForVideo(video, now, (res: ImageSegmenterResult) => {
-        ctx.clearRect(0, 0, overlay.width, overlay.height);
-        const mask = res.categoryMask;
-        if (mask) {
-          const data = mask.getAsUint8Array();
-          const img = ctx.createImageData(overlay.width, overlay.height);
-          for (let i = 0; i < data.length; i++) {
-            const p = i * 4;
-            if (data[i] === HAIR_CLASS) {
-              img.data[p] = EMERAUDE[0];
-              img.data[p + 1] = EMERAUDE[1];
-              img.data[p + 2] = EMERAUDE[2];
-              img.data[p + 3] = 110;
-            } else {
-              img.data[p + 3] = 0;
+      try {
+        segmenter.segmentForVideo(video, now, (res: ImageSegmenterResult) => {
+          ctx.clearRect(0, 0, overlay.width, overlay.height);
+          const mask = res.categoryMask;
+          if (mask) {
+            const data = mask.getAsUint8Array();
+            const img = ctx.createImageData(overlay.width, overlay.height);
+            for (let i = 0; i < data.length; i++) {
+              const p = i * 4;
+              if (data[i] === HAIR_CLASS) {
+                img.data[p] = EMERAUDE[0];
+                img.data[p + 1] = EMERAUDE[1];
+                img.data[p + 2] = EMERAUDE[2];
+                img.data[p + 3] = 110;
+              } else {
+                img.data[p + 3] = 0;
+              }
             }
+            ctx.putImageData(img, 0, 0);
+            mask.close();
           }
-          ctx.putImageData(img, 0, 0);
-          mask.close();
-        }
-      });
+        });
+      } catch {
+        // segmentation frame skip
+      }
 
       if (phase === "face") {
-        const faceRes = face.detectForVideo(video, now);
-        const ok = isWellAligned(faceRes, video.videoWidth, video.videoHeight);
-        if (ok) {
-          alignedFramesRef.current += 1;
-          setAlignProgress(Math.min(alignedFramesRef.current / ALIGN_THRESHOLD, 1));
-          setStatus("aligning");
-          if (alignedFramesRef.current > ALIGN_THRESHOLD) {
-            capture();
-            return;
+        try {
+          const faceRes = face.detectForVideo(video, now);
+          const ok = isWellAligned(faceRes, video.videoWidth, video.videoHeight);
+          if (ok) {
+            alignedFramesRef.current += 1;
+            setAlignProgress(Math.min(alignedFramesRef.current / ALIGN_THRESHOLD, 1));
+            setStatus("aligning");
+            if (alignedFramesRef.current > ALIGN_THRESHOLD) {
+              capture();
+              return;
+            }
+          } else {
+            alignedFramesRef.current = 0;
+            setAlignProgress(0);
+            setStatus("ready");
           }
-        } else {
-          alignedFramesRef.current = 0;
-          setAlignProgress(0);
-          setStatus("ready");
+        } catch {
+          // face detection frame skip
         }
       }
     }
@@ -148,24 +180,40 @@ export default function HairScanner({ phase, onCapture, onReady, onError }: Prop
     capturedRef.current = false;
     alignedFramesRef.current = 0;
     setAlignProgress(0);
-    setStatus("init");
+    setStatus("loading");
+
+    const timeout = setTimeout(() => {
+      if (mounted && status === "loading") {
+        setStatus("error");
+        onError?.(new Error("Chargement trop long. Vérifie ta connexion et réessaie."));
+      }
+    }, 45000);
 
     (async () => {
       try {
-        await loadModels();
         await startCamera();
         if (!mounted) return;
+        setLoadingMsg("Chargement des modèles IA...");
+
+        await loadModels();
+        if (!mounted) return;
+
+        clearTimeout(timeout);
         setStatus("ready");
         onReady?.();
         rafRef.current = requestAnimationFrame(renderLoop);
       } catch (e) {
-        console.error(e);
+        console.error("HairScanner error:", e);
+        if (!mounted) return;
+        clearTimeout(timeout);
         setStatus("error");
-        onError?.(e instanceof Error ? e : new Error("Erreur caméra"));
+        onError?.(e instanceof Error ? e : new Error("Impossible d'initialiser le scanner."));
       }
     })();
+
     return () => {
       mounted = false;
+      clearTimeout(timeout);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       const stream = videoRef.current?.srcObject as MediaStream | null;
       stream?.getTracks().forEach((t) => t.stop());
@@ -174,7 +222,7 @@ export default function HairScanner({ phase, onCapture, onReady, onError }: Prop
   }, []);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-[16px]">
+    <div className="relative w-full overflow-hidden rounded-[16px] bg-surface-2">
       <video
         ref={videoRef}
         className="w-full"
@@ -188,11 +236,13 @@ export default function HairScanner({ phase, onCapture, onReady, onError }: Prop
       <canvas ref={captureRef} className="hidden" />
 
       {/* Grille de cadrage */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-[15%] rounded-full border-2 border-accent/30" />
-        <div className="absolute left-1/2 top-[10%] bottom-[10%] w-px -translate-x-1/2 bg-accent/15" />
-        <div className="absolute top-1/2 left-[10%] right-[10%] h-px -translate-y-1/2 bg-accent/15" />
-      </div>
+      {status !== "loading" && status !== "init" && (
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-[15%] rounded-full border-2 border-accent/30" />
+          <div className="absolute left-1/2 top-[10%] bottom-[10%] w-px -translate-x-1/2 bg-accent/15" />
+          <div className="absolute top-1/2 left-[10%] right-[10%] h-px -translate-y-1/2 bg-accent/15" />
+        </div>
+      )}
 
       {/* Anneau de progression (auto-capture face) */}
       {phase === "face" && status === "aligning" && (
@@ -216,10 +266,13 @@ export default function HairScanner({ phase, onCapture, onReady, onError }: Prop
 
       {/* Texte de statut */}
       <div className="absolute bottom-4 left-0 right-0 text-center">
-        {status === "init" && (
-          <span className="rounded-full bg-ink/60 px-4 py-1.5 text-sm font-medium text-text backdrop-blur-sm">
-            Initialisation...
-          </span>
+        {(status === "init" || status === "loading") && (
+          <div className="flex flex-col items-center gap-2">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+            <span className="rounded-full bg-ink/60 px-4 py-1.5 text-sm font-medium text-text backdrop-blur-sm">
+              {loadingMsg}
+            </span>
+          </div>
         )}
         {status === "ready" && phase === "face" && (
           <span className="rounded-full bg-ink/60 px-4 py-1.5 text-sm font-medium text-text backdrop-blur-sm">
@@ -239,6 +292,11 @@ export default function HairScanner({ phase, onCapture, onReady, onError }: Prop
         {status === "captured" && (
           <span className="rounded-full bg-accent/20 px-4 py-1.5 text-sm font-semibold text-accent backdrop-blur-sm">
             Capturé
+          </span>
+        )}
+        {status === "error" && (
+          <span className="rounded-full bg-danger/20 px-4 py-1.5 text-sm font-medium text-danger backdrop-blur-sm">
+            Erreur de chargement
           </span>
         )}
       </div>
