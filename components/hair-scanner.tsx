@@ -301,8 +301,8 @@ export default function HairScanner({ phase, onCapture, onReady, onError }: Prop
         )}
       </div>
 
-      {/* Bouton capture manuelle (sommet) */}
-      {phase === "top" && status === "ready" && (
+      {/* Bouton capture manuelle */}
+      {(phase === "top" || (phase === "face" && status === "ready")) && (status === "ready") && (
         <button
           onClick={capture}
           className="absolute bottom-16 left-1/2 -translate-x-1/2 flex h-16 w-16 items-center justify-center rounded-full border-4 border-accent bg-accent/20 transition-transform active:scale-95"
@@ -328,7 +328,7 @@ function isWellAligned(res: ReturnType<FaceLandmarker["detectForVideo"]>, _w: nu
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
   const boxW = maxX - minX;
-  const centered = Math.abs(cx - 0.5) < 0.12 && Math.abs(cy - 0.45) < 0.15;
-  const bigEnough = boxW > 0.3;
+  const centered = Math.abs(cx - 0.5) < 0.25 && Math.abs(cy - 0.5) < 0.25;
+  const bigEnough = boxW > 0.2;
   return centered && bigEnough;
 }
