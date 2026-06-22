@@ -362,39 +362,64 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
   );
 }
 
+const MESH_POINTS = [
+  10, 67, 297, 109, 338, 151,
+  70, 63, 105, 300, 293, 334, 168,
+  33, 133, 159, 145, 362, 263, 386, 374,
+  6, 4, 1, 98, 327,
+  116, 345, 123, 352,
+  61, 291, 0, 17,
+  127, 356, 132, 361, 58, 288, 152, 172, 397,
+];
+
+const MESH_LINES: [number, number][] = [
+  [10, 67], [10, 297], [10, 151], [67, 109], [297, 338],
+  [109, 105], [338, 334], [67, 151], [297, 151], [151, 168],
+  [67, 70], [297, 300],
+  [105, 63], [63, 70], [334, 293], [293, 300],
+  [70, 168], [300, 168],
+  [168, 6], [6, 4], [4, 1],
+  [33, 168], [362, 168], [133, 105], [263, 334],
+  [1, 98], [1, 327], [98, 33], [327, 362],
+  [133, 116], [263, 345], [116, 123], [345, 352],
+  [123, 61], [352, 291], [105, 116], [334, 345],
+  [61, 0], [291, 0], [61, 17], [291, 17],
+  [98, 61], [327, 291],
+  [109, 127], [338, 356], [127, 132], [356, 361],
+  [132, 58], [361, 288], [58, 172], [288, 397],
+  [172, 152], [397, 152], [17, 152],
+  [123, 132], [352, 361], [61, 58], [291, 288],
+  [33, 159], [159, 133], [133, 145], [145, 33],
+  [362, 386], [386, 263], [263, 374], [374, 362],
+];
+
 function drawFaceMesh(
   ctx: CanvasRenderingContext2D,
   landmarks: Landmark[],
   w: number,
   h: number
 ) {
-  const connections = FaceLandmarker.FACE_LANDMARKS_TESSELATION;
-  if (!connections) return;
-
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
-  ctx.lineWidth = 0.5;
+  // Lines
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.45)";
+  ctx.lineWidth = 1.2;
   ctx.beginPath();
-  for (const conn of connections) {
-    const from = landmarks[conn.start];
-    const to = landmarks[conn.end];
+  for (const [a, b] of MESH_LINES) {
+    const from = landmarks[a];
+    const to = landmarks[b];
     if (!from || !to) continue;
     ctx.moveTo(from.x * w, from.y * h);
     ctx.lineTo(to.x * w, to.y * h);
   }
   ctx.stroke();
 
-  const oval = FaceLandmarker.FACE_LANDMARKS_FACE_OVAL;
-  if (!oval) return;
-  ctx.strokeStyle = "rgba(22, 185, 129, 0.35)";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  for (let i = 0; i < oval.length; i++) {
-    const pt = landmarks[oval[i].start];
+  // Dots
+  ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+  for (const idx of MESH_POINTS) {
+    const pt = landmarks[idx];
     if (!pt) continue;
-    if (i === 0) ctx.moveTo(pt.x * w, pt.y * h);
-    else ctx.lineTo(pt.x * w, pt.y * h);
+    ctx.beginPath();
+    ctx.arc(pt.x * w, pt.y * h, 2.5, 0, Math.PI * 2);
+    ctx.fill();
   }
-  ctx.closePath();
-  ctx.stroke();
 }
 
