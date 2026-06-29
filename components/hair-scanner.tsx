@@ -58,7 +58,10 @@ function buildInpaintMask(hairMask: Uint8Array, width: number, height: number): 
     out.data[i] = on; out.data[i + 1] = on; out.data[i + 2] = on; out.data[i + 3] = 255;
   }
   ctx.putImageData(out, 0, 0);
-  ctx.filter = "blur(2px)";
+  // Feathering proportionnel : un bord doux (gradient) au lieu d'un bord net
+  // => FLUX fond les nouveaux cheveux sans bordure visible (cle du realisme).
+  const feather = Math.max(3, Math.round(height * 0.008));
+  ctx.filter = `blur(${feather}px)`;
   ctx.drawImage(canvas, 0, 0);
   ctx.filter = "none";
   return canvas.toDataURL("image/png");
@@ -289,7 +292,7 @@ export default function HairScanner({ onAllCaptured }: Props) {
       reject("Cadre bien ta tête dans le repère"); return;
     }
 
-    const dataUrl = c.toDataURL("image/jpeg", 0.92);
+    const dataUrl = c.toDataURL("image/jpeg", 0.95); // source nette = avant/apres net
 
     setFlash(true);
     haptics.confirm();
