@@ -8,6 +8,7 @@ import { DensityField } from "@/components/landing/density-field";
 import { TrustBar } from "@/components/landing/trust-bar";
 import { StatsBand } from "@/components/landing/stats-band";
 import { Reassurance } from "@/components/landing/reassurance";
+import { GradientBanner } from "@/components/landing/gradient-banner";
 import SiteFooter from "@/components/site-footer";
 import { trackEvent } from "@/lib/track";
 import { useEffect, useState, useRef } from "react";
@@ -298,21 +299,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA final */}
-      <section className="relative isolate overflow-hidden px-5 py-24 sm:py-28">
-        <div className="contour-bg" />
-        <Reveal className="mx-auto max-w-lg text-center">
-          <h2 className="font-display t-h1 text-balance font-semibold text-text">
-            Prêt à savoir où tu en es ?
-          </h2>
-          <p className="mt-4 text-text-muted">
-            Une photo, 30 secondes. Et tu sais où tu en es.
-          </p>
-          <div className="mt-8">
-            <CtaButton variant={hero.key} />
-          </div>
-        </Reveal>
-      </section>
+      {/* CTA final, banniere degrade type Stripe */}
+      <GradientBanner />
 
       <SiteFooter />
 

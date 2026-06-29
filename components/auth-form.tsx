@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
 import { Button, Input } from "@/components/ui";
@@ -38,7 +37,6 @@ export default function AuthForm({
   const [message, setMessage] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   async function handleGoogle() {
     const supabase = createClient();
@@ -78,7 +76,8 @@ export default function AuthForm({
           if (onSuccess) {
             onSuccess();
           } else {
-            router.push(redirectTo);
+            // Navigation dure : garantit que la page lit la session fraiche.
+            window.location.assign(redirectTo);
           }
         }
       }
@@ -93,7 +92,7 @@ export default function AuthForm({
         if (onSuccess) {
           onSuccess();
         } else {
-          router.push(redirectTo);
+          window.location.assign(redirectTo);
         }
       }
     }

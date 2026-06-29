@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { RadioCard, ProgressBar, Button } from "@/components/ui";
 import { trackEvent } from "@/lib/track";
 import AuthForm from "@/components/auth-form";
@@ -78,7 +77,6 @@ export default function Onboarding() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showFeedback, setShowFeedback] = useState(false);
   const [direction, setDirection] = useState<"next" | "prev">("next");
-  const router = useRouter();
 
   useEffect(() => {
     trackEvent("onboarding_started");
@@ -128,8 +126,9 @@ export default function Onboarding() {
 
   const handleAuthSuccess = useCallback(async () => {
     trackEvent("onboarding_completed");
-    router.push("/scan");
-  }, [router]);
+    // Navigation dure : la page scan lit la session fraiche, pas de rebond.
+    window.location.assign("/scan");
+  }, []);
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-5 py-8">
