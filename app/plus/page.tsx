@@ -80,12 +80,34 @@ export default function Plus() {
         {/* Titre dynamique */}
         <div className="text-center">
           <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text sm:text-[30px]">
-            Débloque ton plan pour {objectif || "avancer"}
+            Tu sais où tu vas. Voici comment y arriver.
           </h1>
           <p className="mt-2 text-text-muted">
-            Ton bilan complet, ton plan personnalisé et ton suivi mois après mois.
+            Ton plan pour {objectif || "avancer"}, ton objectif complet et ton suivi mois après mois.
           </p>
         </div>
+
+        {/* Pile de valeur AU-DESSUS du prix (ancrage de valeur) */}
+        <Card className="space-y-3">
+          <p className="text-sm font-medium text-text">Tout ce que tu reçois</p>
+          <ul className="space-y-2.5">
+            {VALUE_STACK.map((item) => (
+              <li key={item.label} className="flex items-center justify-between gap-3 text-sm">
+                <span className="flex items-start gap-2.5 text-text-muted">
+                  <svg className="mt-0.5 h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                  {item.label}
+                </span>
+                <span className="shrink-0 font-data text-xs text-text-faint">{item.value}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex items-center justify-between border-t border-border pt-3 text-sm">
+            <span className="font-medium text-text">Valeur totale</span>
+            <span className="font-data font-medium text-text">{TOTAL_VALUE}</span>
+          </div>
+        </Card>
 
         {/* Sélecteur Mensuel / Annuel */}
         <div className="flex rounded-[var(--radius-md)] border border-border bg-surface p-1">
@@ -132,27 +154,14 @@ export default function Plus() {
           )}
         </Card>
 
-        {/* Pile de valeur : tout ce que tu débloques */}
-        <Card className="space-y-3">
-          <p className="text-sm font-medium text-text">Tout ce que tu débloques</p>
-          <ul className="space-y-2.5">
-            {VALUE_STACK.map((item) => (
-              <li key={item.label} className="flex items-center justify-between gap-3 text-sm">
-                <span className="flex items-start gap-2.5 text-text-muted">
-                  <svg className="mt-0.5 h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                  </svg>
-                  {item.label}
-                </span>
-                <span className="shrink-0 font-data text-xs text-text-faint">{item.value}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="flex items-center justify-between border-t border-border pt-3 text-sm">
-            <span className="font-medium text-text">Valeur totale</span>
-            <span className="font-data font-medium text-text">{TOTAL_VALUE}</span>
-          </div>
-        </Card>
+        {/* Garantie EN ÉVIDENCE : elle remplace la promesse de résultat. */}
+        <div className="rounded-[16px] border border-accent/30 bg-accent-soft/40 p-4 text-center">
+          <p className="text-[15px] font-semibold text-text">Satisfait ou remboursé</p>
+          <p className="mt-1 text-xs leading-relaxed text-text-muted">
+            Essaie ton plan. S'il ne te convient pas, on te rembourse, sans condition.
+            On ne te promet pas un miracle. On te garantit ton argent.
+          </p>
+        </div>
 
         {/* CTA */}
         <Button
@@ -161,7 +170,7 @@ export default function Plus() {
           onClick={handleCheckout}
           loading={loading}
         >
-          Débloquer mon plan
+          Démarrer mon plan
         </Button>
 
         {error && (
@@ -170,7 +179,7 @@ export default function Plus() {
 
         {/* Réassurance */}
         <p className="text-center text-xs text-text-faint">
-          Paiement sécurisé via Lemon Squeezy. Factures et TVA dans ton espace client.
+          Paiement sécurisé. Tes reçus dans ton espace.
         </p>
 
         <div className="flex flex-wrap justify-center gap-4 text-xs text-text-muted">

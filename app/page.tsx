@@ -24,14 +24,14 @@ interface HeroVariant {
 const HERO_VARIANTS: HeroVariant[] = [
   {
     key: "A",
-    headline: "Sache où en sont tes cheveux. Et reprends la main, sereinement.",
-    sub: "Une photo, 30 secondes. Ton score de densité, tes zones, ton stade et l'aperçu de ton objectif. Gratuit, sans carte.",
+    headline: "Sache où en sont tes cheveux, et reprends le contrôle. En une photo.",
+    sub: "Ton score en 30 secondes, ton objectif sur ta propre photo, et le plan pour y arriver. Gratuit, sans carte.",
     cta: "Faire mon scan gratuit",
   },
   {
     key: "B",
-    headline: "Ta densité capillaire sur 100. Mesurée et suivie, mois après mois.",
-    sub: "Scanne ton crâne, reçois ton score, tes zones et ton stade. Re-scanne chaque mois et vois ta courbe. Gratuit pour commencer.",
+    headline: "Sache où en sont tes cheveux avant qu'il soit trop tard. Reprends le contrôle.",
+    sub: "Ton score en 30 secondes, ton objectif sur ta propre photo, et le plan pour y arriver. Gratuit, sans carte.",
     cta: "Faire mon scan gratuit",
   },
 ];
@@ -110,7 +110,7 @@ export default function Home() {
         <DensityField className="-z-10 opacity-90 [mask-image:radial-gradient(85%_70%_at_50%_32%,black,transparent_80%)]" />
         <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-xs font-medium text-text-muted">
           <ScoreMark size={16} value={0.72} />
-          Analyse capillaire de bien-être, par IA
+          Analyse capillaire de bien-être, en une photo
         </span>
         <h1 className="w-full max-w-2xl text-balance text-center font-display t-hero font-semibold text-text">
           {hero.headline}
@@ -164,18 +164,18 @@ export default function Home() {
             {[
               {
                 num: "1",
-                title: "Scanne.",
-                desc: "Prends ton crâne en photo. Tu reçois un score de densité, ton stade et tes zones.",
+                title: "Sache où tu en es.",
+                desc: "Une photo, et tu as ton score, ton stade et tes zones. Clair, en 30 secondes.",
               },
               {
                 num: "2",
-                title: "Visualise.",
-                desc: "Vois l'aperçu de ton objectif, sur ta propre photo. Une simulation, pas une promesse.",
+                title: "Vois ton cap.",
+                desc: "Ton objectif sur ta propre photo, pour savoir où tu vas. Une simulation, pas une promesse.",
               },
               {
                 num: "3",
-                title: "Suis.",
-                desc: "Suis un plan sur 30 jours et re-scanne chaque mois pour voir ta courbe.",
+                title: "Avance avec un plan.",
+                desc: "Un plan fait pour toi, et ta courbe qui bouge à chaque nouveau scan.",
               },
             ].map((s, i) => (
               <Reveal key={s.num} delay={i * 90} className="text-center">
@@ -194,11 +194,11 @@ export default function Home() {
       <section className="border-y border-border bg-surface/40 px-5 py-20 sm:py-24">
         <Reveal className="mx-auto max-w-xl text-center">
           <h2 className="font-display t-h2 text-balance font-semibold text-text">
-            Le scan qui te dit tout
+            Le scan qui te montre où tu en es
           </h2>
           <p className="mx-auto mt-3 max-w-md text-pretty text-sm text-text-muted">
-            En une photo, l'analyse situe ta densité, tes zones et ton stade.
-            Tu vois clair en quelques secondes.
+            En une photo, ton score, tes zones et ton stade. Une estimation claire,
+            en quelques secondes.
           </p>
           <div className="mt-10 flex justify-center">
             <Gauge score={72} label="Exemple de score" />
@@ -224,7 +224,7 @@ export default function Home() {
               },
               {
                 title: "Tu avances avec un plan.",
-                desc: "Un plan simple sur 30 jours, adapté à ta situation.",
+                desc: "Un plan fait pour toi, sans recherche ni prise de tête.",
               },
               {
                 title: "Tu mesures tes progrès.",
@@ -249,9 +249,14 @@ export default function Home() {
           {/* Compteur réel de scans (masqué tant qu'il n'y a pas de données). */}
           <SocialProof />
           <p className="text-pretty text-sm text-text-muted">
-            Scalpy est en lancement. Rejoins les premiers utilisateurs et
-            découvre ton bilan.
+            On ne te vend pas de miracle. On situe, on estime, on suit, et tu
+            décides. Si le plan ne te convient pas, tu es remboursé.
           </p>
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-medium text-text-muted">
+            <span>Satisfait ou remboursé</span>
+            <span>Photos privées, en Europe</span>
+            <span>Bien-être, pas un avis médical</span>
+          </div>
         </Reveal>
       </section>
 
