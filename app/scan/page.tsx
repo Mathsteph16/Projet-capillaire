@@ -73,30 +73,25 @@ export default function Scan() {
 
     trackEvent("scan_started");
 
-    const stepInterval = setInterval(() => {
-      setAnalysisStep((s) => {
-        if (s < ANALYSIS_STEPS.length - 1) return s + 1;
-        clearInterval(stepInterval);
-        return s;
-      });
-    }, 1800);
+    // On garde stepInterval pour les clearInterval existants (l'étape est dérivée
+    // du pourcentage maintenant, plus de timer séparé désynchronisé).
+    const stepInterval = setInterval(() => {}, 100000);
 
-    // Progression FLUIDE pilotee par l'avancement reel : on s'approche de 90% en
-    // ralentissant (jamais de blocage net), puis des que l'analyse est prete on
-    // remplit jusqu'a 100% pile -> deblocage. progressTarget passe a 100 quand
-    // le resultat arrive (ou la barre reste en approche douce, jamais figee a 95).
-    let progressTarget = 90;
+    // Progression LINÉAIRE qui ne stagne JAMAIS : montée régulière jusqu'à 95 %
+    // tant que l'analyse tourne, puis remplissage rapide jusqu'à 100 % au résultat.
+    // L'étape affichée est DÉRIVÉE du % (synchro parfaite, fini le "90 % à l'étape 2").
+    let progressTarget = 95;
+    let pct = 0;
     const percentInterval = setInterval(() => {
-      setAnalysisPercent((p) => {
-        const k = progressTarget >= 100 ? 0.2 : 0.06; // remplissage final plus vif
-        const next = p + (progressTarget - p) * k;
-        if (progressTarget >= 100 && next >= 99.4) {
-          clearInterval(percentInterval);
-          return 100; // pile 100%
-        }
-        return Math.min(next, progressTarget);
-      });
-    }, 55);
+      if (progressTarget >= 100) {
+        pct = pct + (100 - pct) * 0.25; // remplissage final rapide
+        if (pct >= 99.5) { pct = 100; clearInterval(percentInterval); }
+      } else {
+        pct = Math.min(95, pct + 0.5); // ~95 % en ~17 s, montée régulière
+      }
+      setAnalysisPercent(pct);
+      setAnalysisStep(Math.min(ANALYSIS_STEPS.length - 1, Math.floor((pct / 100) * ANALYSIS_STEPS.length)));
+    }, 90);
 
     async function runAnalysis() {
       try {
