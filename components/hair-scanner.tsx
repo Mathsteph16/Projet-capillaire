@@ -136,6 +136,21 @@ function assessQuality(src: HTMLCanvasElement): { ok: boolean; reason: string } 
   return { ok: true, reason: "" };
 }
 
+// Luminosite moyenne d'une frame, sur un downscale 64px (tres rapide) : sert au
+// retour lumiere EN DIRECT, pour prevenir avant la prise plutot qu'apres.
+function frameBrightness(video: HTMLVideoElement, canvas: HTMLCanvasElement): number {
+  const w = 64;
+  const h = Math.max(1, Math.round((w * video.videoHeight) / video.videoWidth));
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return 128;
+  ctx.drawImage(video, 0, 0, w, h);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  let sum = 0;
+  for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  return sum / (d.length / 4);
+}
+
 // Message clair selon la vraie cause de l'echec camera (err.name, jamais le message).
 // Chaque cause appelle une action differente : on ne laisse jamais un ecran muet.
 function cameraErrorMessage(err: unknown): { title: string; hint: string } {
@@ -187,6 +202,11 @@ export default function HairScanner({ onAllCaptured }: Props) {
   const phaseStartTimeRef = useRef<number>(0);
   const coachRef = useRef("");
   const qualityUntilRef = useRef(0);
+  // Echantillonnage lumiere en direct (throttle) : on previent AVANT la prise
+  // si c'est trop sombre / trop clair, au lieu d'attendre une prise refusee.
+  const lightCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lightTimeRef = useRef(0);
+  const lightMsgRef = useRef("");
 
   const [status, setStatus] = useState<"loading" | "ready" | "aligning" | "captured" | "error">("loading");
   const [loadingMsg, setLoadingMsg] = useState("Préparation de la caméra...");
@@ -391,6 +411,13 @@ export default function HairScanner({ onAllCaptured }: Props) {
             msg = "Recule pour cadrer toute ta tete, puis appuie sur le bouton";
           }
 
+          // Lumiere en direct prioritaire : sans bonne lumiere, rien d'autre ne
+          // compte (et la prise serait refusee). On le dit tout de suite.
+          if (lightMsgRef.current) {
+            msg = lightMsgRef.current;
+            ready = false;
+          }
+
           // Un message qualite (prise refusee) reste prioritaire le temps de son affichage.
           if (now < qualityUntilRef.current) {
             // on garde le message qualite courant, on ne le remplace pas
@@ -414,6 +441,19 @@ export default function HairScanner({ onAllCaptured }: Props) {
         });
       } catch {
         // frame skip
+      }
+
+      // Echantillon lumiere en direct (throttle ~600ms, cout negligeable)
+      if (now - lightTimeRef.current > 600) {
+        lightTimeRef.current = now;
+        if (!lightCanvasRef.current) lightCanvasRef.current = document.createElement("canvas");
+        try {
+          const b = frameBrightness(video, lightCanvasRef.current);
+          lightMsgRef.current =
+            b < 45 ? "Trop sombre · mets-toi face à une lumière"
+            : b > 215 ? "Trop de lumière · éloigne-toi de la source"
+            : "";
+        } catch { lightMsgRef.current = ""; }
       }
 
       // Face detection (throttled)
