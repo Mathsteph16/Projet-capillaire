@@ -13,6 +13,7 @@ export { Badge } from "./badge";
 export { PriceCard } from "./price-card";
 export { ScanAnimation } from "./scan-animation";
 export { ImageSlider } from "./image-slider";
+export { BeforeAfter } from "./before-after";
 export { Reveal } from "./reveal";
 export { CountUp } from "./count-up";
 export { ScoreMark } from "./score-mark";

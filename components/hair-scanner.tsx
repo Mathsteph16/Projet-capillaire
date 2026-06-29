@@ -24,9 +24,43 @@ const FACE_DETECT_INTERVAL = 100;
 const GRACE_PERIOD_MS = 3000;
 
 type Props = {
-  onAllCaptured: (photos: string[]) => void;
+  onAllCaptured: (photos: string[], masks: string[]) => void;
   onError?: (err: Error) => void;
 };
+
+// Construit le masque d'inpainting depuis le masque cheveux MediaPipe.
+// Blanc = zone a repeindre (cheveux + zones a regarnir), noir = a preserver.
+function buildInpaintMask(hairMask: Uint8Array, width: number, height: number): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  const img = ctx.createImageData(width, height);
+  for (let i = 0; i < hairMask.length; i++) {
+    const v = hairMask[i] === 1 ? 255 : 0;
+    const p = i * 4;
+    img.data[p] = v; img.data[p + 1] = v; img.data[p + 2] = v; img.data[p + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  // dilatation pour englober recul frontal et couronne a regarnir
+  const grow = Math.max(6, Math.round(height * 0.05));
+  ctx.globalCompositeOperation = "lighter";
+  ctx.filter = `blur(${grow}px)`;
+  ctx.drawImage(canvas, 0, 0);
+  ctx.filter = "none";
+  ctx.globalCompositeOperation = "source-over";
+  // re seuillage pour des bords nets
+  const out = ctx.getImageData(0, 0, width, height);
+  for (let i = 0; i < out.data.length; i += 4) {
+    const on = out.data[i] > 40 ? 255 : 0;
+    out.data[i] = on; out.data[i + 1] = on; out.data[i + 2] = on; out.data[i + 3] = 255;
+  }
+  ctx.putImageData(out, 0, 0);
+  ctx.filter = "blur(2px)";
+  ctx.drawImage(canvas, 0, 0);
+  ctx.filter = "none";
+  return canvas.toDataURL("image/png");
+}
 
 const PHASES = [
   { title: "Scan 1 sur 3 · Face", heading: "Regarde la caméra, visage bien droit", label: "Scan du front et des golfes en cours", auto: true },
@@ -48,6 +82,9 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
   const lastFaceTimeRef = useRef<number>(0);
   const stableFramesRef = useRef(0);
   const photosRef = useRef<string[]>([]);
+  const masksRef = useRef<string[]>([]);
+  const maskBufRef = useRef<Uint8Array | null>(null);
+  const maskDimsRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
   const capturingRef = useRef(false);
   const phaseRef = useRef(0);
   const landmarksRef = useRef<Landmark[] | null>(null);
@@ -77,6 +114,15 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
 
     photosRef.current = [...photosRef.current, dataUrl];
 
+    // masque d'inpainting de cette prise (depuis le dernier masque cheveux MediaPipe)
+    let maskUrl = "";
+    try {
+      const hb = maskBufRef.current;
+      const { w, h } = maskDimsRef.current;
+      if (hb && w && h && hb.length === w * h) maskUrl = buildInpaintMask(hb, w, h);
+    } catch { /* masque optionnel */ }
+    masksRef.current = [...masksRef.current, maskUrl];
+
     if (photosRef.current.length < PHASES.length) {
       setTimeout(() => {
         phaseRef.current += 1;
@@ -93,7 +139,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       const stream = videoRef.current?.srcObject as MediaStream | null;
       stream?.getTracks().forEach((t) => t.stop());
-      onAllCaptured(photosRef.current);
+      onAllCaptured(photosRef.current, masksRef.current);
     }
   }, [onAllCaptured]);
 
@@ -130,15 +176,24 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           let hairPixels = 0;
           const img = ctx.createImageData(overlay.width, overlay.height);
 
+          // buffer du masque cheveux (1 = cheveux), reutilise entre les frames
+          if (!maskBufRef.current || maskBufRef.current.length !== totalPixels) {
+            maskBufRef.current = new Uint8Array(totalPixels);
+          }
+          const hairBuf = maskBufRef.current;
+          maskDimsRef.current = { w: overlay.width, h: overlay.height };
+
           for (let i = 0; i < totalPixels; i++) {
             const p = i * 4;
             if (data[i] === HAIR_CLASS) {
               hairPixels++;
+              hairBuf[i] = 1;
               img.data[p] = EMERAUDE[0];
               img.data[p + 1] = EMERAUDE[1];
               img.data[p + 2] = EMERAUDE[2];
               img.data[p + 3] = 110;
             } else {
+              hairBuf[i] = 0;
               img.data[p + 3] = 0;
             }
           }

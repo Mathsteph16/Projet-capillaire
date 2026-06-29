@@ -51,11 +51,12 @@ export default function Scan() {
     });
   }, [router]);
 
-  const handleAllCaptured = useCallback((capturedPhotos: string[]) => {
+  const handleAllCaptured = useCallback((capturedPhotos: string[], capturedMasks: string[]) => {
     setPhotos(capturedPhotos);
-    // Save portrait photo (3rd) for before/after slider
+    // La prise portrait (3e) est l'avant ; son masque sert a l'inpainting.
     if (capturedPhotos[2]) {
       sessionStorage.setItem("portraitPhoto", capturedPhotos[2]);
+      sessionStorage.setItem("portraitMask", capturedMasks?.[2] || "");
     }
     trackEvent("scan_captured", { photos: capturedPhotos.length });
     setStep("processing");
@@ -120,11 +121,21 @@ export default function Scan() {
         sessionStorage.setItem("scanResult", JSON.stringify(data));
         if (data.photoPath) sessionStorage.setItem("scanPhotoPath", data.photoPath);
 
-        if (data.scanId && data.photoPath) {
+        // Inpainting au masque : on envoie la prise portrait (l'avant) + son masque.
+        // Garde anti faux-apres : stade tres avance, on ne genere pas de projection.
+        const portrait = sessionStorage.getItem("portraitPhoto");
+        const portraitMask = sessionStorage.getItem("portraitMask") || undefined;
+        const veryAdvanced = ["VI", "VII"].includes(String(data.norwood || "").toUpperCase());
+        if (data.scanId && portrait && !veryAdvanced) {
           fetch("/api/projection", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ scanId: data.scanId, photoPath: data.photoPath }),
+            body: JSON.stringify({
+              scanId: data.scanId,
+              photoPath: data.photoPath,
+              beforeImage: portrait,
+              maskImage: portraitMask,
+            }),
           }).catch(() => {});
         }
 

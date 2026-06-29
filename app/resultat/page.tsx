@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
-import { Gauge, Card, Button, Disclaimer, Badge, ImageSlider, ScoreMark } from "@/components/ui";
+import { Gauge, Card, Button, Disclaimer, Badge, BeforeAfter, ScoreMark } from "@/components/ui";
 
 interface ScanResult {
   usable: boolean;
@@ -111,14 +111,8 @@ export default function Resultat() {
         }
       }
 
-      const photoPath = sessionStorage.getItem("scanPhotoPath");
-      if (photoPath) {
-        const { data: origUrl } = await supabase.storage
-          .from("scalp-photos")
-          .createSignedUrl(photoPath, 3600);
-        if (origUrl?.signedUrl) setOriginalUrl(origUrl.signedUrl);
-      }
-
+      // L'avant reste la prise portrait (sessionStorage), pour s'aligner au pixel
+      // avec l'apres inpainte a partir de cette meme prise.
       setProjectionLoading(false);
     }
 
@@ -222,11 +216,11 @@ export default function Resultat() {
           </div>
 
           {hasProjection ? (
-            <ImageSlider
-              beforeSrc={originalUrl}
-              afterSrc={fullProjectionUrl || teaserUrl!}
-              beforeLabel="ACTUELLEMENT"
-              afterLabel="APRÈS 12 SEMAINES"
+            <BeforeAfter
+              beforeUrl={originalUrl}
+              afterUrl={fullProjectionUrl || teaserUrl!}
+              locked
+              onUnlock={() => { trackEvent("unlock_click"); window.location.assign("/plus"); }}
             />
           ) : (
             <div className="relative w-full overflow-hidden rounded-[16px] bg-surface-2 aspect-[3/4] flex items-center justify-center">
