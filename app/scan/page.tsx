@@ -93,6 +93,18 @@ export default function Scan() {
       setAnalysisStep(Math.min(ANALYSIS_STEPS.length - 1, Math.floor((pct / 100) * ANALYSIS_STEPS.length)));
     }, 90);
 
+    // FILET DE SÉCURITÉ GLOBAL : quoi qu'il arrive (un await qui traîne, un blocage
+    // imprévu), l'écran d'analyse ne reste JAMAIS coincé. Au bout de 50 s sans
+    // résultat, on sort proprement vers l'écran de reprise.
+    const safety = setTimeout(() => {
+      clearInterval(stepInterval);
+      clearInterval(percentInterval);
+      trackEvent("scan_safety_timeout");
+      setError("L'analyse a mis trop de temps. Réessaie (et vérifie ta connexion).");
+      setStep("manque");
+      analysisDone.current = false;
+    }, 50_000);
+
     async function runAnalysis() {
       try {
         trackEvent("scan_proc_start");
@@ -115,7 +127,9 @@ export default function Scan() {
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          await supabase.from("profiles").upsert(
+          // NON-BLOQUANT (void) : l'enregistrement du consentement ne doit JAMAIS
+          // retarder ni bloquer l'analyse.
+          void supabase.from("profiles").upsert(
             { id: session.user.id, photo_consent_at: new Date().toISOString() },
             { onConflict: "id" }
           );
@@ -211,7 +225,7 @@ export default function Scan() {
     }
 
     runAnalysis();
-    return () => { clearInterval(stepInterval); clearInterval(percentInterval); };
+    return () => { clearInterval(stepInterval); clearInterval(percentInterval); clearTimeout(safety); };
   }, [step, photos]);
 
   // Prefetch des modeles MediaPipe des l'ecran "choix" (l'utilisateur est sur le
