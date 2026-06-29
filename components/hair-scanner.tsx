@@ -18,10 +18,13 @@ const FACE_MODEL =
 
 const HAIR_CLASS = 1;
 const EMERAUDE = [22, 185, 129];
-const STABLE_FRAMES = 60;
+// Nombre d'images consecutives "tout est bon" avant la prise auto (anti-tremblement).
+const HOLD_FRAMES = 22;
 const MIN_HAIR_RATIO = 0.06;
-const FACE_DETECT_INTERVAL = 100;
-const GRACE_PERIOD_MS = 3000;
+const FACE_DETECT_INTERVAL = 90;
+const GRACE_PERIOD_MS = 1500;
+// Au-dela, on considere que la detection galere et on pousse le bouton manuel.
+const STRUGGLE_MS = 9000;
 
 type Props = {
   onAllCaptured: (photos: string[], masks: string[]) => void;
@@ -70,6 +73,70 @@ const PHASES = [
 
 type Landmark = { x: number; y: number; z: number };
 
+// Guidage en direct a partir des reperes du visage : trop loin, trop pres,
+// decentre, tete penchee. Une seule consigne a la fois, en action positive.
+// faceFrac = largeur du visage en fraction du cadre (mesure de distance robuste,
+// independante de la resolution). Pose lue sur la matrice 4x4 (column-major).
+function analyzeFace(
+  lm: Landmark[],
+  matrix?: Float32Array | number[] | null
+): { msg: string; ready: boolean } {
+  const left = lm[234], right = lm[454], nose = lm[1];
+  if (!left || !right || !nose) return { msg: "Place ton visage dans le cadre", ready: false };
+
+  const faceFrac = Math.abs(right.x - left.x);
+  const cx = nose.x, cy = nose.y;
+
+  let tilted = false;
+  if (matrix && matrix.length >= 11) {
+    const deg = (r: number) => (r * 180) / Math.PI;
+    const clamp = (v: number) => Math.max(-1, Math.min(1, v));
+    const pitch = deg(Math.asin(clamp(-matrix[6])));
+    const yaw = deg(Math.atan2(matrix[2], matrix[10]));
+    const roll = deg(Math.atan2(matrix[4], matrix[5]));
+    tilted = Math.abs(yaw) > 18 || Math.abs(pitch) > 18 || Math.abs(roll) > 15;
+  }
+
+  if (faceFrac < 0.24) return { msg: "Rapproche-toi un peu", ready: false };
+  if (faceFrac > 0.74) return { msg: "Recule un peu", ready: false };
+  if (Math.abs(cx - 0.5) > 0.2 || Math.abs(cy - 0.46) > 0.22)
+    return { msg: "Centre ton visage dans le cadre", ready: false };
+  if (tilted) return { msg: "Tiens ta tete bien droite, regarde la camera", ready: false };
+  return { msg: "Parfait, ne bouge plus", ready: true };
+}
+
+// Controle qualite de la prise : nettete (variance du Laplacien) + luminosite,
+// sur une version reduite (rapide). Un bon avant conditionne un bon apres.
+function assessQuality(src: HTMLCanvasElement): { ok: boolean; reason: string } {
+  const w = 320;
+  const h = Math.max(1, Math.round((w * src.height) / src.width));
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return { ok: true, reason: "" };
+  ctx.drawImage(src, 0, 0, w, h);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  const g = new Float32Array(w * h);
+  let bSum = 0;
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    const v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    g[p] = v; bSum += v;
+  }
+  const brightness = bSum / g.length;
+  let sum = 0, sum2 = 0, n = 0;
+  for (let y = 1; y < h - 1; y++)
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const L = 4 * g[i] - g[i - 1] - g[i + 1] - g[i - w] - g[i + w];
+      sum += L; sum2 += L * L; n++;
+    }
+  const blurVar = sum2 / n - (sum / n) * (sum / n);
+  if (brightness < 45) return { ok: false, reason: "Trop sombre, rapproche-toi d'une lumiere" };
+  if (brightness > 215) return { ok: false, reason: "Trop de lumiere, eloigne-toi de la source" };
+  if (blurVar < 70) return { ok: false, reason: "Image floue, tiens le telephone bien stable" };
+  return { ok: true, reason: "" };
+}
+
 export default function HairScanner({ onAllCaptured, onError }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -80,7 +147,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(-1);
   const lastFaceTimeRef = useRef<number>(0);
-  const stableFramesRef = useRef(0);
+  const holdRef = useRef(0);
   const photosRef = useRef<string[]>([]);
   const masksRef = useRef<string[]>([]);
   const maskBufRef = useRef<Uint8Array | null>(null);
@@ -88,13 +155,26 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
   const capturingRef = useRef(false);
   const phaseRef = useRef(0);
   const landmarksRef = useRef<Landmark[] | null>(null);
+  const matrixRef = useRef<Float32Array | number[] | null>(null);
   const phaseStartTimeRef = useRef<number>(0);
+  const coachRef = useRef("");
+  const qualityUntilRef = useRef(0);
 
   const [status, setStatus] = useState<"loading" | "ready" | "aligning" | "captured" | "error">("loading");
   const [loadingMsg, setLoadingMsg] = useState("Préparation de la caméra...");
   const [phase, setPhase] = useState(0);
   const [flash, setFlash] = useState(false);
   const [alignProgress, setAlignProgress] = useState(0);
+  const [coachMsg, setCoachMsg] = useState("");
+  const [struggling, setStruggling] = useState(false);
+
+  // Affiche une consigne, debouncee : on ne re-rend que si le message change.
+  const setCoach = useCallback((m: string) => {
+    if (coachRef.current !== m) {
+      coachRef.current = m;
+      setCoachMsg(m);
+    }
+  }, []);
 
   const doCapture = useCallback(() => {
     if (capturingRef.current) return;
@@ -106,6 +186,19 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
     c.height = video.videoHeight;
     const cCtx = c.getContext("2d")!;
     cCtx.drawImage(video, 0, 0, c.width, c.height);
+
+    // Controle qualite avant d'accepter la prise (un bon avant = un bon apres)
+    const q = assessQuality(c);
+    if (!q.ok) {
+      capturingRef.current = false;
+      holdRef.current = 0;
+      setAlignProgress(0);
+      qualityUntilRef.current = performance.now() + 2400;
+      setCoach(q.reason);
+      setStatus("ready");
+      return;
+    }
+
     const dataUrl = c.toDataURL("image/jpeg", 0.92);
 
     setFlash(true);
@@ -128,9 +221,11 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
         phaseRef.current += 1;
         setPhase(phaseRef.current);
         setStatus("ready");
-        stableFramesRef.current = 0;
+        holdRef.current = 0;
         setAlignProgress(0);
+        setStruggling(false);
         landmarksRef.current = null;
+        matrixRef.current = null;
         phaseStartTimeRef.current = performance.now();
         capturingRef.current = false;
       }, 600);
@@ -141,7 +236,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
       stream?.getTracks().forEach((t) => t.stop());
       onAllCaptured(photosRef.current, masksRef.current);
     }
-  }, [onAllCaptured]);
+  }, [onAllCaptured, setCoach]);
 
   const renderLoop = useCallback(() => {
     const video = videoRef.current;
@@ -208,22 +303,63 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
             drawFaceMesh(ctx, lm, overlay.width, overlay.height);
           }
 
-          // Auto-capture based on hair density (only on auto phases, after grace period)
-          const currentAutoPhase = PHASES[phaseRef.current]?.auto;
+          if (capturingRef.current) return;
+
+          // ---- Guidage en direct, une consigne a la fois, par phase ----
+          const phaseIdx = phaseRef.current;
+          const ph = PHASES[phaseIdx];
           const elapsed = now - phaseStartTimeRef.current;
           const ratio = hairPixels / totalPixels;
-          if (currentAutoPhase && ratio >= MIN_HAIR_RATIO && !capturingRef.current && elapsed > GRACE_PERIOD_MS) {
-            stableFramesRef.current += 1;
-            const progress = Math.min(stableFramesRef.current / STABLE_FRAMES, 1);
-            setAlignProgress(progress);
-            setStatus("aligning");
-            if (stableFramesRef.current >= STABLE_FRAMES) {
-              doCapture();
+
+          let msg = "";
+          let ready = false;
+
+          if (ph?.auto && phaseIdx === 0) {
+            // Phase visage : on guide sur la distance, le centrage et la pose.
+            const lm = landmarksRef.current;
+            if (!lm) {
+              msg = "Place ton visage dans le cadre";
+            } else {
+              const a = analyzeFace(lm, matrixRef.current);
+              if (a.ready && ratio < 0.03) {
+                msg = "Montre le haut de ta tete et tes golfes";
+              } else {
+                msg = a.msg;
+                ready = a.ready;
+              }
+            }
+          } else if (ph?.auto) {
+            // Phase dessus : tete penchee, le visage n'est plus visible -> on guide au cuir chevelu.
+            if (ratio >= MIN_HAIR_RATIO) {
+              msg = "Parfait, ne bouge plus";
+              ready = true;
+            } else {
+              msg = "Penche la tete vers l'avant, montre le dessus du crane";
             }
           } else {
-            stableFramesRef.current = 0;
-            setAlignProgress(0);
+            // Phase portrait : manuelle, on cadre puis on appuie.
+            msg = "Recule pour cadrer toute ta tete, puis appuie sur le bouton";
+          }
+
+          // Un message qualite (prise refusee) reste prioritaire le temps de son affichage.
+          if (now < qualityUntilRef.current) {
+            // on garde le message qualite courant, on ne le remplace pas
+          } else {
+            setCoach(msg);
+          }
+
+          if (ready && elapsed > GRACE_PERIOD_MS) {
+            holdRef.current = Math.min(holdRef.current + 1, HOLD_FRAMES);
+            setAlignProgress(holdRef.current / HOLD_FRAMES);
+            setStatus("aligning");
+            setStruggling(false);
+            if (holdRef.current >= HOLD_FRAMES) doCapture();
+          } else {
+            holdRef.current = Math.max(0, holdRef.current - 2);
+            setAlignProgress(holdRef.current / HOLD_FRAMES);
             if (!capturingRef.current) setStatus("ready");
+            // Detection qui galere : on met le declencheur manuel en avant.
+            setStruggling(ph?.auto === true && elapsed > STRUGGLE_MS);
           }
         });
       } catch {
@@ -238,8 +374,10 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           const faceRes = face.detectForVideo(video, now);
           if (faceRes.faceLandmarks?.length) {
             landmarksRef.current = faceRes.faceLandmarks[0];
+            matrixRef.current = faceRes.facialTransformationMatrixes?.[0]?.data ?? null;
           } else {
             landmarksRef.current = null;
+            matrixRef.current = null;
           }
         } catch {
           // face detection skip
@@ -274,7 +412,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
         await video.play();
 
         if (!mounted) return;
-        setLoadingMsg("Chargement des modèles IA...");
+        setLoadingMsg("Chargement de l'analyse · le 1er chargement peut prendre quelques secondes");
 
         const vision = await FilesetResolver.forVisionTasks(WASM);
 
@@ -300,7 +438,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
             runningMode: "VIDEO",
             numFaces: 1,
             outputFaceBlendshapes: false,
-            outputFacialTransformationMatrixes: false,
+            outputFacialTransformationMatrixes: true,
           });
         } catch {
           try {
@@ -309,7 +447,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
               runningMode: "VIDEO",
               numFaces: 1,
               outputFaceBlendshapes: false,
-              outputFacialTransformationMatrixes: false,
+              outputFacialTransformationMatrixes: true,
             });
           } catch {
             // Face mesh optional
@@ -336,6 +474,9 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       const stream = videoRef.current?.srcObject as MediaStream | null;
       stream?.getTracks().forEach((t) => t.stop());
+      // Libere le contexte WebGL et la memoire WASM (sinon fuite, cf. doc MediaPipe).
+      try { segmenterRef.current?.close(); } catch { /* ignore */ }
+      try { faceRef.current?.close(); } catch { /* ignore */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -366,6 +507,20 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           </g>
         </svg>
 
+        {/* Ovale de cadrage du visage (phase 1) : repere ou se placer, vert quand c'est bon */}
+        {phase === 0 && (status === "ready" || status === "aligning") && (
+          <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <ellipse
+              cx="50" cy="44" rx="26" ry="34"
+              fill="none"
+              stroke={status === "aligning" ? "var(--accent)" : "rgba(255,255,255,0.6)"}
+              strokeWidth="0.7"
+              strokeDasharray={status === "aligning" ? "none" : "3 2.5"}
+              className="transition-colors duration-300"
+            />
+          </svg>
+        )}
+
         {flash && <div className="absolute inset-0 bg-white/30 transition-opacity duration-300" />}
 
         {status === "aligning" && (
@@ -384,27 +539,34 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           </div>
         )}
 
-        <div className="absolute bottom-4 left-0 right-0 text-center">
+        {/* Bandeau de consigne : toujours une indication claire a l'ecran */}
+        <div className="pointer-events-none absolute bottom-4 left-0 right-0 flex flex-col items-center gap-2 px-4 text-center">
           {status === "loading" && (
             <div className="flex flex-col items-center gap-2">
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-              <span className="rounded-full bg-ink/60 px-4 py-1.5 text-sm font-medium text-text backdrop-blur-sm">
+              <span className="max-w-[90%] rounded-full bg-ink/70 px-4 py-1.5 text-sm font-medium text-white backdrop-blur-sm">
                 {loadingMsg}
               </span>
             </div>
           )}
-          {status === "ready" && (
-            <span className="rounded-full bg-ink/60 px-4 py-1.5 text-sm font-medium text-text backdrop-blur-sm">
-              {currentPhase?.label}
+          {(status === "ready" || status === "aligning") && coachMsg && (
+            <span
+              className={`max-w-[92%] rounded-full px-4 py-1.5 text-sm font-semibold backdrop-blur-sm ${
+                status === "aligning"
+                  ? "bg-accent/25 text-white"
+                  : "bg-ink/70 text-white"
+              }`}
+            >
+              {coachMsg}
             </span>
           )}
-          {status === "aligning" && (
-            <span className="rounded-full bg-accent/20 px-4 py-1.5 text-sm font-semibold text-accent backdrop-blur-sm">
-              Analyse en cours, ne bouge pas
+          {struggling && status === "ready" && (
+            <span className="max-w-[92%] rounded-full bg-amber-500/85 px-4 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
+              Détection difficile · mets-toi face à une lumière, ou appuie pour prendre la photo
             </span>
           )}
           {status === "captured" && (
-            <span className="rounded-full bg-accent/20 px-4 py-1.5 text-sm font-semibold text-accent backdrop-blur-sm">
+            <span className="rounded-full bg-accent/25 px-4 py-1.5 text-sm font-semibold text-white backdrop-blur-sm">
               Capturé
             </span>
           )}
@@ -416,13 +578,20 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
         </div>
 
         {(status === "ready" || status === "aligning") && (
-          <button
-            onClick={doCapture}
-            className="absolute bottom-16 left-1/2 -translate-x-1/2 flex h-16 w-16 items-center justify-center rounded-full border-4 border-accent bg-accent/20 transition-transform active:scale-95"
-            aria-label="Capturer"
-          >
-            <div className="h-12 w-12 rounded-full bg-accent" />
-          </button>
+          <div className="absolute bottom-16 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5">
+            <button
+              onClick={doCapture}
+              className={`flex h-16 w-16 items-center justify-center rounded-full border-4 border-accent bg-accent/20 transition-transform active:scale-95 ${
+                struggling ? "animate-pulse ring-4 ring-accent/40" : ""
+              }`}
+              aria-label="Prendre la photo"
+            >
+              <div className="h-12 w-12 rounded-full bg-accent" />
+            </button>
+            <span className="rounded-full bg-ink/55 px-2.5 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur-sm">
+              {currentPhase?.auto ? "Auto, ou appuie" : "Appuie pour la photo"}
+            </span>
+          </div>
         )}
       </div>
     </div>
