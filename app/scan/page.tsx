@@ -10,6 +10,10 @@ import dynamic from "next/dynamic";
 
 const HairScanner = dynamic(() => import("@/components/hair-scanner"), { ssr: false });
 
+// Marqueur de version : permet de voir d'un coup d'oeil si le navigateur a bien
+// chargé le code à jour (sinon = cache navigateur, il faut recharger en dur).
+const BUILD = "v3-23h55";
+
 type ScanStep = "manque" | "choix" | "capture" | "processing" | "bilan";
 
 const ANALYSIS_STEPS = [
@@ -48,6 +52,7 @@ export default function Scan() {
 
   useEffect(() => {
     const supabase = createClient();
+    trackEvent("scan_page_loaded", { build: BUILD });
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.user) router.push("/auth?next=/scan");
     });
@@ -71,7 +76,7 @@ export default function Scan() {
     if (step !== "processing" || analysisDone.current) return;
     analysisDone.current = true;
 
-    trackEvent("scan_started");
+    trackEvent("scan_started", { build: BUILD });
 
     // On garde stepInterval pour les clearInterval existants (l'étape est dérivée
     // du pourcentage maintenant, plus de timer séparé désynchronisé).
@@ -394,8 +399,9 @@ export default function Scan() {
       <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
         <div className="w-full max-w-md space-y-8 animate-fade-in text-center">
           <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">
-            Analyse de ton cuir chevelu
+            Analyse de tes cheveux
           </h1>
+          <p className="-mt-6 text-[10px] text-text-faint">{BUILD}</p>
 
           {/* Anneau circulaire */}
           <div className="relative mx-auto h-40 w-40">
