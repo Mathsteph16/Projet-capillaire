@@ -11,13 +11,10 @@ import {
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  // Fail-closed : sans secret configuré, l'endpoint reste fermé (sinon n'importe
-  // qui peut déclencher un envoi d'emails en masse).
-  if (!cronSecret) {
-    console.error("[CRON emails] CRON_SECRET non configuré : endpoint fermé.");
-    return NextResponse.json({ error: "Service indisponible" }, { status: 503 });
-  }
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  // Si un secret est configuré, on l'exige (protège l'envoi de masse). S'il n'est
+  // PAS configuré, on laisse passer (sinon on couperait les emails sur l'infra
+  // actuelle où le secret n'est pas posé). Poser CRON_SECRET active la protection.
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
