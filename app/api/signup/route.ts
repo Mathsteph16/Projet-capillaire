@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Création de compte SANS confirmation d'email (zéro friction) : on crée
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     }
 
     const admin = createAdminClient();
-    const { error } = await admin.auth.admin.createUser({
+    const { data, error } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
@@ -30,6 +31,24 @@ export async function POST(req: Request) {
         { error: already ? "Cet email est déjà utilisé." : error.message },
         { status: already ? 409 : 400 }
       );
+    }
+
+    // Rattache les réponses du questionnaire (anonymes, liées au cookie de session)
+    // au nouveau compte. Sans ça, la perso (objectif) est perdue pour les
+    // inscriptions par email (seul Google le faisait via auth/callback).
+    // NON BLOQUANT : si ça échoue, l'inscription réussit quand même.
+    try {
+      const userId = data.user?.id;
+      const sessionId = (await cookies()).get("scalpy_sid")?.value;
+      if (userId && sessionId) {
+        await admin
+          .from("onboarding_responses")
+          .update({ user_id: userId })
+          .eq("session_id", sessionId)
+          .is("user_id", null);
+      }
+    } catch (e) {
+      console.error("[signup] Rattachement onboarding échoué (non bloquant):", e);
     }
 
     return NextResponse.json({ ok: true });

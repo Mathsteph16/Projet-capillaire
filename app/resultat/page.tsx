@@ -77,6 +77,9 @@ export default function Resultat() {
   const [objectif, setObjectif] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [projectionLoading, setProjectionLoading] = useState(true);
+  const [isSubscriber, setIsSubscriber] = useState(false);
+  const [projFailed, setProjFailed] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     trackEvent("result_viewed");
@@ -88,13 +91,42 @@ export default function Resultat() {
     const supabase = createClient();
 
     async function loadProjection(userId: string, scanId: string) {
-      // Server-side projection overrides client-side if available
-      const { data: proj } = await supabase
-        .from("projections")
-        .select("teaser_path, full_path, status")
+      // Abonné ou non : décide si on a le droit de servir l'image NETTE.
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("status")
         .eq("user_id", userId)
-        .eq("scan_id", scanId)
         .single();
+      const subActive = sub?.status === "active";
+      setIsSubscriber(subActive);
+
+      // Filet "avant" : après un refresh, la prise n'est plus en sessionStorage.
+      // On la recharge depuis le storage (before.jpg stocké côté serveur au scan)
+      // pour que l'avant/après s'affiche quand même.
+      if (!sessionStorage.getItem("portraitPhoto")) {
+        const { data: bUrl } = await supabase.storage
+          .from("projections")
+          .createSignedUrl(`${userId}/${scanId}/before.jpg`, 3600);
+        if (bUrl?.signedUrl) setOriginalUrl(bUrl.signedUrl);
+      }
+
+      // La projection est lancée en arrière-plan au moment du scan : elle peut
+      // ne pas être prête. On attend (poll) tant qu'elle est "generating", avec un
+      // intervalle qui s'allonge un peu (snappy au début, ~45 s max au total).
+      let proj: { teaser_path: string | null; full_path: string | null; status: string } | null = null;
+      for (let attempt = 0; attempt < 14; attempt++) {
+        const { data } = await supabase
+          .from("projections")
+          .select("teaser_path, full_path, status")
+          .eq("user_id", userId)
+          .eq("scan_id", scanId)
+          .single();
+        proj = data;
+        if (!proj || proj.status === "done" || proj.status === "failed") break;
+        await new Promise((r) => setTimeout(r, attempt < 6 ? 2500 : 4000));
+      }
+
+      setProjFailed(proj?.status === "failed");
 
       if (proj?.status === "done") {
         if (proj.teaser_path) {
@@ -103,7 +135,9 @@ export default function Resultat() {
             .createSignedUrl(proj.teaser_path, 3600);
           if (url?.signedUrl) setTeaserUrl(url.signedUrl);
         }
-        if (proj.full_path) {
+        // L'URL signée de la version nette n'est créée QUE pour un abonné actif.
+        // Un non-abonné ne reçoit jamais le full : impossible de contourner le flou.
+        if (subActive && proj.full_path) {
           const { data: url } = await supabase.storage
             .from("projections")
             .createSignedUrl(proj.full_path, 3600);
@@ -174,6 +208,27 @@ export default function Resultat() {
     });
   }, []);
 
+  // Régénère l'aperçu IA (en cas d'échec, ou si l'abonné veut une autre version).
+  // Pas de seed fixe côté serveur -> chaque génération donne un rendu différent.
+  async function regenerate() {
+    if (regenerating) return;
+    const portrait = sessionStorage.getItem("portraitPhoto");
+    const mask = sessionStorage.getItem("portraitMask") || undefined;
+    const photoPath = sessionStorage.getItem("scanPhotoPath") || undefined;
+    if (!result?.scanId || !portrait) return;
+    setRegenerating(true);
+    try {
+      await fetch("/api/projection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scanId: result.scanId, photoPath, beforeImage: portrait, maskImage: mask }),
+      });
+      window.location.reload();
+    } catch {
+      setRegenerating(false);
+    }
+  }
+
   if (loading) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-4 px-4">
@@ -218,8 +273,8 @@ export default function Resultat() {
           {hasProjection ? (
             <BeforeAfter
               beforeUrl={originalUrl}
-              afterUrl={fullProjectionUrl || teaserUrl!}
-              locked
+              afterUrl={isSubscriber ? (fullProjectionUrl || teaserUrl!) : teaserUrl!}
+              locked={!isSubscriber}
               onUnlock={() => { trackEvent("unlock_click"); window.location.assign("/plus"); }}
             />
           ) : (
@@ -230,11 +285,33 @@ export default function Resultat() {
                   <p className="text-sm text-text-faint">Génération de ta projection...</p>
                 </div>
               ) : (
-                <p className="text-sm text-text-faint px-8 text-center">
-                  Projection non disponible pour le moment.
-                </p>
+                <div className="flex flex-col items-center gap-3 px-8 text-center">
+                  <p className="text-sm text-text-faint">
+                    {projFailed ? "La génération a échoué cette fois." : "Projection non disponible pour le moment."}
+                  </p>
+                  {(projFailed || regenerating) && (
+                    <button
+                      onClick={regenerate}
+                      disabled={regenerating}
+                      className="rounded-[var(--radius-md)] bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-60"
+                    >
+                      {regenerating ? "Régénération..." : "Régénérer mon aperçu"}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
+          )}
+
+          {/* Abonné : possibilité de relancer une autre version de l'aperçu. */}
+          {hasProjection && isSubscriber && (
+            <button
+              onClick={regenerate}
+              disabled={regenerating}
+              className="mx-auto block text-xs text-text-faint underline-offset-2 transition-colors hover:text-text-muted hover:underline disabled:opacity-50"
+            >
+              {regenerating ? "Régénération..." : "Pas le rendu que tu voulais ? Régénérer"}
+            </button>
           )}
 
           {/* Carte objectif (style scoremax) */}
@@ -257,7 +334,7 @@ export default function Resultat() {
 
             <div className="flex items-center justify-between text-xs text-text-faint">
               <span>
-                Norwood {result.norwood || "?"} · Score {result.score}/100
+                Stade {result.norwood || "?"} · Score {result.score}/100
               </span>
               <span className="font-data font-medium">12 semaines</span>
             </div>
@@ -296,11 +373,14 @@ export default function Resultat() {
         {result.norwood && (
           <Card>
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-text-muted">Stade estimé</p>
+              <p className="text-sm font-medium text-text-muted">Ton stade de dégarnissement</p>
               <Badge variant="accent">{result.norwood}</Badge>
             </div>
             <p className="mt-3 text-sm text-text-muted">
               {NORWOOD_DESC[result.norwood] || "Stade estimé."}
+            </p>
+            <p className="mt-2 text-xs text-text-faint">
+              C'est l'échelle de référence (I à VII) : de « aucun signe » à « avancé ». Tu es au stade {result.norwood}.
             </p>
             <div className="mt-4 flex gap-1">
               {["I", "II", "III", "IV", "V", "VI", "VII"].map((s) => (
@@ -310,6 +390,10 @@ export default function Resultat() {
                   {s}
                 </div>
               ))}
+            </div>
+            <div className="mt-1.5 flex justify-between text-[10px] text-text-faint">
+              <span>aucun signe</span>
+              <span>avancé</span>
             </div>
           </Card>
         )}
@@ -324,6 +408,9 @@ export default function Resultat() {
                 <Badge key={z} variant="signal">{z}</Badge>
               ))}
             </div>
+            <p className="mt-3 text-center text-xs text-text-faint">
+              Golfes = les coins du front · Vertex / couronne = le sommet du crâne · Ligne frontale = le devant
+            </p>
           </Card>
         )}
 
@@ -342,14 +429,32 @@ export default function Resultat() {
                   <p className="text-sm text-text">{rec}</p>
                 </div>
               ))}
+              {/* Teaser : on montre qu'il reste du plan a debloquer (desir). */}
+              <div className="flex items-center gap-3 rounded-[12px] border border-dashed border-accent/40 bg-accent-soft/40 p-3">
+                <svg className="h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+                <p className="text-sm text-text-muted">
+                  <span className="font-medium text-text">Ton plan complet, semaine par semaine</span> — débloqué dans Plus
+                </p>
+              </div>
             </div>
           </Card>
         )}
 
-        {/* CTA */}
-        <Link href="/plus" onClick={() => trackEvent("unlock_click")}>
-          <Button variant="primary" size="lg">Débloquer mon plan</Button>
-        </Link>
+        {/* CTA conversion : on relie le déblocage au résultat qu'il vient de voir. */}
+        <div className="space-y-2.5 rounded-[16px] border border-accent/30 bg-accent-soft/30 p-4 text-center">
+          <p className="text-[15px] font-semibold text-text">
+            Tu sais où tu en es. Passe à l'action.
+          </p>
+          <p className="text-xs leading-relaxed text-text-muted">
+            Ton plan complet pour {objectif || "avancer"}, ton objectif net sur ta photo, et ton suivi mois après mois pour voir ta courbe bouger.
+          </p>
+          <Link href="/plus" onClick={() => trackEvent("unlock_click")} className="block">
+            <Button variant="primary" size="lg" className="w-full">Débloquer mon plan</Button>
+          </Link>
+          <p className="text-[11px] text-text-faint">Paiement sécurisé · annulable à tout moment</p>
+        </div>
 
         {/* Actions */}
         <div className="flex gap-3">

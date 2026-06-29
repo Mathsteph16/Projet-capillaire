@@ -10,6 +10,7 @@ import { StatsBand } from "@/components/landing/stats-band";
 import { Reassurance } from "@/components/landing/reassurance";
 import { GradientBanner } from "@/components/landing/gradient-banner";
 import SiteFooter from "@/components/site-footer";
+import SocialProof from "@/components/social-proof";
 import { trackEvent } from "@/lib/track";
 import { useEffect, useState, useRef } from "react";
 
@@ -23,7 +24,7 @@ interface HeroVariant {
 const HERO_VARIANTS: HeroVariant[] = [
   {
     key: "A",
-    headline: "Sache où en sont tes cheveux. Reprends le contrôle avant qu'il soit trop tard.",
+    headline: "Sache où en sont tes cheveux. Et reprends la main, sereinement.",
     sub: "Une photo, 30 secondes. Ton score de densité, tes zones, ton stade et l'aperçu de ton objectif. Gratuit, sans carte.",
     cta: "Faire mon scan gratuit",
   },
@@ -31,7 +32,7 @@ const HERO_VARIANTS: HeroVariant[] = [
     key: "B",
     headline: "Ta densité capillaire sur 100. Mesurée et suivie, mois après mois.",
     sub: "Scanne ton crâne, reçois ton score, tes zones et ton stade. Re-scanne chaque mois et vois ta courbe. Gratuit pour commencer.",
-    cta: "Voir mon score",
+    cta: "Faire mon scan gratuit",
   },
 ];
 
@@ -244,7 +245,9 @@ export default function Home() {
 
       {/* Preuve sociale (slot honnête) */}
       <section className="border-y border-border bg-surface/40 px-5 py-16">
-        <Reveal className="mx-auto max-w-xl text-center">
+        <Reveal className="mx-auto flex max-w-xl flex-col items-center gap-5 text-center">
+          {/* Compteur réel de scans (masqué tant qu'il n'y a pas de données). */}
+          <SocialProof />
           <p className="text-pretty text-sm text-text-muted">
             Scalpy est en lancement. Rejoins les premiers utilisateurs et
             découvre ton bilan.

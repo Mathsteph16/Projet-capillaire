@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { trackEventServer } from "@/lib/track-server";
-
-// Prompt definitif : on ne modifie QUE les cheveux dans la zone masquee,
-// amelioration realiste et atteignable, jamais une restauration miraculeuse.
-const AFTER_PROMPT = `Photorealistic editorial close up portrait of the exact same man. Keep his face, skin tone, age, ethnicity, head shape, ears, expression, camera angle and lighting perfectly identical and untouched. Only modify the hair inside the masked scalp area. In the thinning and receding regions, render natural healthy hair that exactly matches his own hair color, texture, thickness and growth direction, with a realistic and believable increase in density and coverage. It must look like the same person a few months later after a modest natural improvement, never a hair transplant and never a full restoration. Preserve the original hairline shape, only slightly fuller and cleaner. Seamless natural blend with the existing hair at every edge, no visible border. Match the original lighting direction, contrast and facial symmetry exactly. Keep the natural skin texture, pores and the original phone photo look, do not smooth, retouch, beautify or airbrush the skin, keep realistic imperfections. Keep the change subtle and believable rather than dramatic. True to life photography, soft realistic lighting. No hat, no wig, no hairstyle change, no makeup change, no text, no logo, no watermark.`;
-
-const NEGATIVE_PROMPT = `different person, changed face, distorted face, cartoon, illustration, 3d render, plastic skin, smoothed skin, airbrushed, beautified, glamour retouch, over polished, doll hair, fake wig, helmet hair, unrealistic full head of hair on a bald scalp, miraculous restoration, dense hair on a Norwood 6 crown, oversaturated, blurry, low quality, artifacts, extra ears, warped features, text, watermark, logo`;
-
-const PROMPT_VERSION = "projection-v2-inpaint";
+// Prompts centralisés et documentés (voir lib/projection-prompt.ts + docs/PROMPT-PROJECTION.md).
+import { AFTER_PROMPT, NEGATIVE_PROMPT, PROMPT_VERSION } from "@/lib/projection-prompt";
 
 // Garde anti-abus : max de generations par utilisateur sur une fenetre.
 // L'idempotence par scanId evite deja les doublons ; ceci borne le cout global.
@@ -25,9 +20,32 @@ function rateLimited(userId: string): boolean {
   return false;
 }
 
+// Appel externe borné dans le temps : un fournisseur lent ne bloque jamais la
+// requête indéfiniment (libère la fonction serverless).
+async function fetchTimeout(url: string, init: RequestInit, ms = 45_000): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function storeResult(admin: ReturnType<typeof createAdminClient>, userId: string, scanId: string, buffer: Buffer) {
-  await admin.storage.from("projections").upload(`${userId}/${scanId}/full.jpg`, buffer, { contentType: "image/jpeg", upsert: true });
-  await admin.storage.from("projections").upload(`${userId}/${scanId}/teaser.jpg`, buffer, { contentType: "image/jpeg", upsert: true });
+  // La sortie FLUX est un PNG : on l'encode en vrai JPEG haute qualite (abonne =
+  // image nette) -> bon etiquetage + fichier plus leger a servir.
+  let full = buffer;
+  try { full = await sharp(buffer).jpeg({ quality: 92, progressive: true }).toBuffer(); } catch { full = buffer; }
+  await admin.storage.from("projections").upload(`${userId}/${scanId}/full.jpg`, full, { contentType: "image/jpeg", upsert: true });
+  // Teaser VOLONTAIREMENT dégradé (réduit + fortement flouté) : même récupéré
+  // en direct via son URL, il ne révèle pas le résultat net. La version nette
+  // (full.jpg) n'est servie qu'aux abonnés (cf. page résultat).
+  let teaser = buffer;
+  try {
+    teaser = await sharp(buffer).resize(420).blur(16).jpeg({ quality: 38 }).toBuffer();
+  } catch { teaser = buffer; }
+  await admin.storage.from("projections").upload(`${userId}/${scanId}/teaser.jpg`, teaser, { contentType: "image/jpeg", upsert: true });
 }
 
 export async function POST(req: Request) {
@@ -87,7 +105,7 @@ export async function POST(req: Request) {
     // s'aligne au pixel avec l'avant. On ne touche qu'a la zone masquee (cheveux).
     if (falKey && beforeImage && maskImage) {
       try {
-        const falRes = await fetch("https://fal.run/fal-ai/flux-pro/v1/fill", {
+        const falRes = await fetchTimeout("https://fal.run/fal-ai/flux-pro/v1/fill", {
           method: "POST",
           headers: { Authorization: `Key ${falKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -95,8 +113,8 @@ export async function POST(req: Request) {
             mask_url: maskImage,
             prompt: AFTER_PROMPT,
             num_images: 1,
-            num_inference_steps: 35,
-            guidance_scale: 3.5,
+            num_inference_steps: 30, // le detail capillaire plafonne au-dela, inutile de payer plus
+            guidance_scale: 3.5, // 3 a 4 : au-dela les meches deviennent plastiques
             output_format: "png", // evite les artefacts JPEG sur la zone recollee
             safety_tolerance: "2",
           }),
@@ -130,7 +148,7 @@ export async function POST(req: Request) {
           }
         }
         if (imageUrl) {
-          const falRes = await fetch("https://fal.run/fal-ai/gemini-2-flash/image", {
+          const falRes = await fetchTimeout("https://fal.run/fal-ai/gemini-2-flash/image", {
             method: "POST",
             headers: { Authorization: `Key ${falKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({ prompt: AFTER_PROMPT, image_url: imageUrl }),
@@ -164,10 +182,10 @@ export async function POST(req: Request) {
           if (photoData) b64Src = `data:image/jpeg;base64,${Buffer.from(await photoData.arrayBuffer()).toString("base64")}`;
         }
         if (b64Src) {
-          const openaiRes = await fetch("https://api.openai.com/v1/images/edits", {
+          const openaiRes = await fetchTimeout("https://api.openai.com/v1/images/edits", {
             method: "POST",
             headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "gpt-image-1.5", prompt: AFTER_PROMPT, image: b64Src }),
+            body: JSON.stringify({ model: "gpt-image-1", prompt: AFTER_PROMPT, image: b64Src }),
           });
           if (openaiRes.ok) {
             const data = await openaiRes.json();

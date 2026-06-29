@@ -8,6 +8,7 @@ import {
   type ImageSegmenterResult,
 } from "@mediapipe/tasks-vision";
 import { haptics } from "@/lib/haptics";
+import { compressImage } from "@/lib/compress-image";
 
 const WASM =
   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
@@ -28,7 +29,6 @@ const STRUGGLE_MS = 9000;
 
 type Props = {
   onAllCaptured: (photos: string[], masks: string[]) => void;
-  onError?: (err: Error) => void;
 };
 
 // Construit le masque d'inpainting depuis le masque cheveux MediaPipe.
@@ -59,6 +59,9 @@ function buildInpaintMask(hairMask: Uint8Array, width: number, height: number): 
     out.data[i] = on; out.data[i + 1] = on; out.data[i + 2] = on; out.data[i + 3] = 255;
   }
   ctx.putImageData(out, 0, 0);
+  // Feathering LEGER (2px) : un bord juste assez doux pour fondre les cheveux,
+  // sans creer une large zone grise que FLUX interpreterait comme "a repeindre"
+  // (ce qui ferait deborder l'inpainting sur le front/visage). Best practice FLUX.
   ctx.filter = "blur(2px)";
   ctx.drawImage(canvas, 0, 0);
   ctx.filter = "none";
@@ -66,9 +69,8 @@ function buildInpaintMask(hairMask: Uint8Array, width: number, height: number): 
 }
 
 const PHASES = [
-  { title: "Scan 1 sur 3 · Face", heading: "Regarde la caméra, visage bien droit", label: "Scan du front et des golfes en cours", auto: true },
-  { title: "Scan 2 sur 3 · Dessus", heading: "Penche la tête vers l'avant", label: "Scan de la couronne et du vertex en cours", auto: true },
-  { title: "Photo 3 sur 3 · Portrait", heading: "Recule pour montrer ta tête entière", label: "Appuie pour prendre la photo", auto: false },
+  { title: "Scan 1 sur 2 · Visage", heading: "Regarde la caméra, visage bien droit", label: "Scan du front en cours", auto: true },
+  { title: "Scan 2 sur 2 · Dessus de la tête", heading: "Penche la tête vers l'avant", label: "Scan du dessus en cours", auto: true },
 ];
 
 type Landmark = { x: number; y: number; z: number };
@@ -101,7 +103,7 @@ function analyzeFace(
   if (faceFrac > 0.74) return { msg: "Recule un peu", ready: false };
   if (Math.abs(cx - 0.5) > 0.2 || Math.abs(cy - 0.46) > 0.22)
     return { msg: "Centre ton visage dans le cadre", ready: false };
-  if (tilted) return { msg: "Tiens ta tete bien droite, regarde la camera", ready: false };
+  if (tilted) return { msg: "Tiens ta tête bien droite, regarde la caméra", ready: false };
   return { msg: "Parfait, ne bouge plus", ready: true };
 }
 
@@ -137,7 +139,51 @@ function assessQuality(src: HTMLCanvasElement): { ok: boolean; reason: string } 
   return { ok: true, reason: "" };
 }
 
-export default function HairScanner({ onAllCaptured, onError }: Props) {
+// Luminosite moyenne d'une frame, sur un downscale 64px (tres rapide) : sert au
+// retour lumiere EN DIRECT, pour prevenir avant la prise plutot qu'apres.
+function frameBrightness(video: HTMLVideoElement, canvas: HTMLCanvasElement): number {
+  const w = 64;
+  const h = Math.max(1, Math.round((w * video.videoHeight) / video.videoWidth));
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return 128;
+  ctx.drawImage(video, 0, 0, w, h);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  let sum = 0;
+  for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  return sum / (d.length / 4);
+}
+
+// Message clair selon la vraie cause de l'echec camera (err.name, jamais le message).
+// Chaque cause appelle une action differente : on ne laisse jamais un ecran muet.
+function cameraErrorMessage(err: unknown): { title: string; hint: string } {
+  const name = (err as { name?: string })?.name || "";
+  switch (name) {
+    case "NotAllowedError":
+    case "SecurityError":
+      return {
+        title: "Accès à la caméra refusé",
+        hint: "Autorise la caméra dans le cadenas du navigateur (ou dans Réglages sur iPhone), puis réessaie. Tu peux aussi importer une photo.",
+      };
+    case "NotFoundError":
+      return {
+        title: "Aucune caméra détectée",
+        hint: "On ne trouve pas de caméra sur cet appareil. Importe une photo pour continuer.",
+      };
+    case "NotReadableError":
+      return {
+        title: "Caméra déjà utilisée",
+        hint: "Une autre application utilise la caméra. Ferme-la puis réessaie, ou importe une photo.",
+      };
+    default:
+      return {
+        title: "Caméra indisponible",
+        hint: "Impossible d'ouvrir la caméra. Réessaie, ou importe une photo depuis ta galerie.",
+      };
+  }
+}
+
+export default function HairScanner({ onAllCaptured }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const captureRef = useRef<HTMLCanvasElement>(null);
@@ -159,6 +205,17 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
   const phaseStartTimeRef = useRef<number>(0);
   const coachRef = useRef("");
   const qualityUntilRef = useRef(0);
+  // Echantillonnage lumiere en direct (throttle) : on previent AVANT la prise
+  // si c'est trop sombre / trop clair, au lieu d'attendre une prise refusee.
+  const lightCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lightTimeRef = useRef(0);
+  const lightMsgRef = useRef("");
+  // Throttle de la segmentation : on plafonne a ~25 traitements/s. Le rendu reste
+  // fluide a l'oeil mais on divise le cout CPU (cle quand la camera est en haute
+  // resolution : sinon on boucle sur 1,5M de pixels 30x/s).
+  const lastSegRef = useRef(0);
+  // ImageData reutilisee entre les frames (au lieu d'en allouer une par frame).
+  const overlayImgRef = useRef<ImageData | null>(null);
 
   const [status, setStatus] = useState<"loading" | "ready" | "aligning" | "captured" | "error">("loading");
   const [loadingMsg, setLoadingMsg] = useState("Préparation de la caméra...");
@@ -167,6 +224,31 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
   const [alignProgress, setAlignProgress] = useState(0);
   const [coachMsg, setCoachMsg] = useState("");
   const [struggling, setStruggling] = useState(false);
+  const [camError, setCamError] = useState<{ title: string; hint: string } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const importRef = useRef<HTMLInputElement>(null);
+
+  // Repli universel : une photo importee de la galerie alimente le MEME pipeline.
+  // Elle sert d'avant et de base d'analyse ; pas de masque (l'apres bascule alors
+  // sur l'edition pleine cote serveur). Personne ne reste bloque.
+  const handleImport = useCallback(
+    async (file: File) => {
+      // Compresse la photo importee (une galerie peut faire 10+ Mo) avant de
+      // l'envoyer dans le pipeline -> upload + IA plus rapides, pas de surcout.
+      const compressed = await compressImage(file).catch(() => file);
+      const fr = new FileReader();
+      fr.onload = () => {
+        const url = String(fr.result || "");
+        if (!url.startsWith("data:image")) return;
+        haptics.confirm();
+        const stream = videoRef.current?.srcObject as MediaStream | null;
+        stream?.getTracks().forEach((t) => t.stop());
+        onAllCaptured([url, url, url], ["", "", ""]);
+      };
+      fr.readAsDataURL(compressed);
+    },
+    [onAllCaptured]
+  );
 
   // Affiche une consigne, debouncee : on ne re-rend que si le message change.
   const setCoach = useCallback((m: string) => {
@@ -187,19 +269,39 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
     const cCtx = c.getContext("2d")!;
     cCtx.drawImage(video, 0, 0, c.width, c.height);
 
-    // Controle qualite avant d'accepter la prise (un bon avant = un bon apres)
-    const q = assessQuality(c);
-    if (!q.ok) {
+    const reject = (reason: string) => {
       capturingRef.current = false;
       holdRef.current = 0;
       setAlignProgress(0);
       qualityUntilRef.current = performance.now() + 2400;
-      setCoach(q.reason);
+      setCoach(reason);
       setStatus("ready");
-      return;
+    };
+
+    // 1) Qualite (nettete + lumiere) : un bon AVANT conditionne un bon apres.
+    const q = assessQuality(c);
+    if (!q.ok) { reject(q.reason); return; }
+
+    // 2) Contenu minimal selon la phase : on REFUSE un mur / ecran noir / cadrage
+    // vide. Sans visage (face) ou sans cheveux (dessus), la prise est inutile et
+    // l'avant/apres serait nul -> on ne capture pas une poubelle.
+    const hb = maskBufRef.current;
+    let hairCount = 0;
+    if (hb) for (let i = 0; i < hb.length; i++) if (hb[i]) hairCount++;
+    const hairRatioNow = hb && hb.length ? hairCount / hb.length : 0;
+    const faceSeen = !!landmarksRef.current;
+    const phaseNow = phaseRef.current;
+    if (phaseNow === 0 && !faceSeen) {
+      reject("Visage non détecté · place bien ton visage dans le cadre"); return;
+    }
+    if (phaseNow === 1 && hairRatioNow < MIN_HAIR_RATIO) {
+      reject("On ne voit pas le dessus de ta tête · penche-toi vers la caméra"); return;
+    }
+    if (phaseNow === 2 && !faceSeen && hairRatioNow < 0.02) {
+      reject("Cadre bien ta tête dans le repère"); return;
     }
 
-    const dataUrl = c.toDataURL("image/jpeg", 0.92);
+    const dataUrl = c.toDataURL("image/jpeg", 0.95); // source nette = avant/apres net
 
     setFlash(true);
     haptics.confirm();
@@ -256,6 +358,11 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
       lastTimeRef.current = video.currentTime;
       const now = performance.now();
 
+      // Segmentation throttlee a ~25/s : on ne re-traite (et on ne reinitialise
+      // le canvas) que toutes les ~40ms. Entre deux, l'overlay precedent persiste
+      // -> aucun clignotement, CPU divise (decisif en haute resolution).
+      if (now - lastSegRef.current >= 40) {
+      lastSegRef.current = now;
       overlay.width = video.videoWidth;
       overlay.height = video.videoHeight;
       const ctx = overlay.getContext("2d")!;
@@ -269,7 +376,12 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           const data = mask.getAsUint8Array();
           const totalPixels = data.length;
           let hairPixels = 0;
-          const img = ctx.createImageData(overlay.width, overlay.height);
+          // Reutilise l'ImageData (chaque pixel est reecrit a chaque frame) au
+          // lieu d'en allouer une neuve a chaque passe -> moins de GC.
+          if (!overlayImgRef.current || overlayImgRef.current.width !== overlay.width || overlayImgRef.current.height !== overlay.height) {
+            overlayImgRef.current = ctx.createImageData(overlay.width, overlay.height);
+          }
+          const img = overlayImgRef.current;
 
           // buffer du masque cheveux (1 = cheveux), reutilise entre les frames
           if (!maskBufRef.current || maskBufRef.current.length !== totalPixels) {
@@ -322,23 +434,35 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
             } else {
               const a = analyzeFace(lm, matrixRef.current);
               if (a.ready && ratio < 0.03) {
-                msg = "Montre le haut de ta tete et tes golfes";
+                msg = "Montre le haut de ton front";
               } else {
                 msg = a.msg;
                 ready = a.ready;
               }
             }
           } else if (ph?.auto) {
-            // Phase dessus : tete penchee, le visage n'est plus visible -> on guide au cuir chevelu.
-            if (ratio >= MIN_HAIR_RATIO) {
+            // Phase dessus : on veut le crane penche vers la camera. Signal fiable :
+            // le visage n'est PLUS detecte de face (tete inclinee) ET assez de
+            // cheveux dans le cadre. Sinon on guide vers le bon geste.
+            const faceVisible = !!landmarksRef.current;
+            if (ratio < MIN_HAIR_RATIO) {
+              msg = "Penche ta tête vers la caméra";
+            } else if (faceVisible) {
+              msg = "Penche un peu plus la tête";
+            } else {
               msg = "Parfait, ne bouge plus";
               ready = true;
-            } else {
-              msg = "Penche la tete vers l'avant, montre le dessus du crane";
             }
           } else {
             // Phase portrait : manuelle, on cadre puis on appuie.
-            msg = "Recule pour cadrer toute ta tete, puis appuie sur le bouton";
+            msg = "Recule pour cadrer toute ta tête, puis appuie";
+          }
+
+          // Lumiere en direct prioritaire : sans bonne lumiere, rien d'autre ne
+          // compte (et la prise serait refusee). On le dit tout de suite.
+          if (lightMsgRef.current) {
+            msg = lightMsgRef.current;
+            ready = false;
           }
 
           // Un message qualite (prise refusee) reste prioritaire le temps de son affichage.
@@ -364,6 +488,20 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
         });
       } catch {
         // frame skip
+      }
+      } // fin throttle segmentation
+
+      // Echantillon lumiere en direct (throttle ~600ms, cout negligeable)
+      if (now - lightTimeRef.current > 600) {
+        lightTimeRef.current = now;
+        if (!lightCanvasRef.current) lightCanvasRef.current = document.createElement("canvas");
+        try {
+          const b = frameBrightness(video, lightCanvasRef.current);
+          lightMsgRef.current =
+            b < 45 ? "Trop sombre · mets-toi face à une lumière"
+            : b > 215 ? "Trop de lumière · éloigne-toi de la source"
+            : "";
+        } catch { lightMsgRef.current = ""; }
       }
 
       // Face detection (throttled)
@@ -393,18 +531,37 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
 
     const timeout = setTimeout(() => {
       if (mounted && status === "loading") {
+        setCamError({
+          title: "Chargement trop long",
+          hint: "Le scanner met du temps à démarrer (connexion lente). Réessaie, ou importe une photo.",
+        });
         setStatus("error");
-        onError?.(new Error("Chargement trop long. Vérifie ta connexion."));
       }
     }, 45000);
 
     (async () => {
       try {
+        setStatus("loading");
+        setCamError(null);
         setLoadingMsg("Accès à la caméra...");
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false,
-        });
+        // Contraintes en "ideal" (jamais "exact" qui rejette sur beaucoup d'appareils),
+        // avec repli total si la combinaison demandee n'est pas supportee.
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            // Resolution portrait 3:4 plus haute (photo source plus nette = avant/apres
+            // plus net). "ideal" s'auto-equilibre : un bon telephone monte en detail,
+            // un appareil modeste reste leger (pas de perte de fluidite).
+            video: { facingMode: { ideal: "user" }, width: { ideal: 1080 }, height: { ideal: 1440 } },
+            audio: false,
+          });
+        } catch (e) {
+          if ((e as { name?: string })?.name === "OverconstrainedError") {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          } else {
+            throw e;
+          }
+        }
         const video = videoRef.current!;
         video.srcObject = stream;
         video.setAttribute("playsinline", "true");
@@ -463,8 +620,9 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
         console.error("HairScanner error:", e);
         if (!mounted) return;
         clearTimeout(timeout);
+        // On reste monte et on propose retry + import : l'utilisateur n'est jamais bloque.
+        setCamError(cameraErrorMessage(e));
         setStatus("error");
-        onError?.(e instanceof Error ? e : new Error("Impossible d'initialiser le scanner."));
       }
     })();
 
@@ -479,9 +637,49 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
       try { faceRef.current?.close(); } catch { /* ignore */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
 
   const currentPhase = PHASES[phase];
+
+  // Ecran d'erreur : on explique la cause et on propose toujours une issue.
+  if (status === "error" && camError) {
+    return (
+      <div className="w-full space-y-4">
+        <div className="rounded-[16px] border border-border bg-surface p-6 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-surface-2">
+            <svg className="h-6 w-6 text-text-muted" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v15.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+            </svg>
+          </div>
+          <h2 className="font-display text-lg font-semibold text-text">{camError.title}</h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-muted">{camError.hint}</p>
+
+          <div className="mt-5 flex flex-col gap-2.5">
+            <button
+              onClick={() => setAttempt((a) => a + 1)}
+              className="w-full rounded-[var(--radius-md)] bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover"
+            >
+              Réessayer la caméra
+            </button>
+            <button
+              onClick={() => importRef.current?.click()}
+              className="w-full rounded-[var(--radius-md)] border border-border px-5 py-3 text-sm font-medium text-text transition-colors hover:bg-surface-2"
+            >
+              Importer une photo
+            </button>
+          </div>
+        </div>
+
+        <input
+          ref={importRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-4">
@@ -492,9 +690,9 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
         </h2>
       </div>
 
-      <div className="relative w-full overflow-hidden rounded-[16px] bg-surface-2">
-        <video ref={videoRef} className="w-full" style={{ transform: "scaleX(-1)" }} />
-        <canvas ref={overlayRef} className="pointer-events-none absolute inset-0 h-full w-full" style={{ transform: "scaleX(-1)" }} />
+      <div className="relative mx-auto aspect-[3/4] max-h-[58vh] w-full overflow-hidden rounded-[16px] bg-surface-2">
+        <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" style={{ transform: "scaleX(-1)" }} />
+        <canvas ref={overlayRef} className="pointer-events-none absolute inset-0 h-full w-full object-cover" style={{ transform: "scaleX(-1)" }} />
         <canvas ref={captureRef} className="hidden" />
 
         {/* Réticule de cadrage : coins de viseur (instrument de précision) */}
@@ -521,6 +719,19 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           </svg>
         )}
 
+        {/* Repere visuel phase 2 (dessus) : on indique de pencher la tete vers
+            l'avant pour exposer la couronne, tant que ce n'est pas bon. */}
+        {phase === 1 && status !== "aligning" && (
+          <div className="pointer-events-none absolute left-1/2 top-6 flex -translate-x-1/2 flex-col items-center gap-1">
+            <svg className="h-9 w-9 animate-bounce text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v13m0 0l-5-5m5 5l5-5" />
+            </svg>
+            <span className="rounded-full bg-ink/70 px-2.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
+              Penche le dessus de ta tête vers la caméra
+            </span>
+          </div>
+        )}
+
         {flash && <div className="absolute inset-0 bg-white/30 transition-opacity duration-300" />}
 
         {status === "aligning" && (
@@ -539,8 +750,9 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           </div>
         )}
 
-        {/* Bandeau de consigne : toujours une indication claire a l'ecran */}
-        <div className="pointer-events-none absolute bottom-4 left-0 right-0 flex flex-col items-center gap-2 px-4 text-center">
+        {/* Bandeau de consigne : toujours une indication claire a l'ecran. aria-live
+            pour que les lecteurs d'ecran annoncent le guidage en temps reel. */}
+        <div role="status" aria-live="polite" className="pointer-events-none absolute bottom-4 left-0 right-0 flex flex-col items-center gap-2 px-4 text-center">
           {status === "loading" && (
             <div className="flex flex-col items-center gap-2">
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
@@ -562,7 +774,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           )}
           {struggling && status === "ready" && (
             <span className="max-w-[92%] rounded-full bg-amber-500/85 px-4 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
-              Détection difficile · mets-toi face à une lumière, ou appuie pour prendre la photo
+              Mets-toi face à une lumière — ou appuie pour prendre la photo
             </span>
           )}
           {status === "captured" && (
@@ -594,6 +806,23 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           </div>
         )}
       </div>
+
+      {/* Repli toujours accessible : la camera coince ? on importe une photo. */}
+      <div className="text-center">
+        <button
+          onClick={() => importRef.current?.click()}
+          className="text-xs text-text-muted underline-offset-2 transition-colors hover:text-text hover:underline"
+        >
+          La caméra ne marche pas ? Importer une photo
+        </button>
+      </div>
+      <input
+        ref={importRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); }}
+      />
     </div>
   );
 }

@@ -42,13 +42,23 @@ export const metadata: Metadata = {
     "bien-être capillaire",
     "analyse IA",
   ],
+  alternates: { canonical: "/" },
   openGraph: {
     title: "Scalpy · Sache où en sont tes cheveux, en une photo",
     description:
       "Ton score de densité, tes zones et ton stade en 30 secondes, plus l'aperçu de ton objectif.",
     type: "website",
+    url: "https://www.scalpy-app.com",
     locale: "fr_FR",
     siteName: "Scalpy",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Scalpy — analyse capillaire en une photo" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Scalpy · Sache où en sont tes cheveux, en une photo",
+    description:
+      "Ton score de densité, tes zones et ton stade en 30 secondes, plus l'aperçu de ton objectif.",
+    images: ["/og.png"],
   },
   icons: {
     icon: "/favicon.svg",
@@ -72,6 +82,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" className={`${bodyFont.variable} ${displayFont.variable} ${dataFont.variable} h-full antialiased`}>
+      <head>
+        {/* Connexions pre-chauffees : Supabase (auth/db/storage), CDN MediaPipe
+            (WASM + modeles du scanner) -> demarrage plus rapide. */}
+        {process.env.NEXT_PUBLIC_SUPABASE_URL && (
+          <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} crossOrigin="anonymous" />
+        )}
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://storage.googleapis.com" crossOrigin="anonymous" />
+      </head>
       <body className="flex min-h-full flex-col font-sans pb-16 sm:pb-0">
         <script
           type="application/ld+json"

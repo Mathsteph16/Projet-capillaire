@@ -1,6 +1,6 @@
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM = "Scalpy <noreply@scalpy.app>";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://scalpy.app";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.scalpy-app.com";
 
 interface SendEmailInput {
   to: string;
@@ -8,20 +8,30 @@ interface SendEmailInput {
   html: string;
 }
 
-export async function sendEmail({ to, subject, html }: SendEmailInput) {
+export async function sendEmail({ to, subject, html }: SendEmailInput): Promise<boolean> {
   if (!RESEND_API_KEY) {
     console.warn("RESEND_API_KEY not set, skipping email");
-    return;
+    return false;
   }
 
-  await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ from: FROM, to, subject, html }),
-  });
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from: FROM, to, subject, html }),
+    });
+    if (!res.ok) {
+      console.error(`[Resend] Échec (${res.status}) pour ${to}: ${await res.text()}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(`[Resend] Erreur réseau pour ${to}:`, err);
+    return false;
+  }
 }
 
 function wrap(content: string): string {

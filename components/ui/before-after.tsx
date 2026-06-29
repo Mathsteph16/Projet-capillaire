@@ -7,22 +7,41 @@ type Props = {
   beforeUrl: string;
   afterUrl: string;
   locked?: boolean;
-  /** position de depart, levier A/B (50 par defaut) */
+  /** position de depart, levier A/B (55 par defaut) */
   start?: number;
   onUnlock?: () => void;
 };
+
+// Interpolation lissee entre points de passage (pour le balayage auto d'intro).
+function easeInOut(t: number): number {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
 
 /**
  * Comparateur avant/apres. L'apres est un inpainting de l'avant (memes
  * dimensions) donc l'alignement est au pixel. Poignee a portee de pouce,
  * pointer events unifies, clavier + ARIA, badge simulation persistant,
- * verrou pour le gratuit (apres floute). Cadrage toujours positif.
+ * verrou pour le gratuit (apres floute). Au chargement, la barre balaie une
+ * fois toute seule pour reveler qu'un "apres" est cache (comprehension immediate).
  */
 export function BeforeAfter({ beforeUrl, afterUrl, locked = false, start = 55, onUnlock }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState(start);
   const [hint, setHint] = useState(true);
+  const [beforeLoaded, setBeforeLoaded] = useState(false);
+  const [afterLoaded, setAfterLoaded] = useState(false);
   const tracked = useRef(false);
+  const interacted = useRef(false);
+  const rafRef = useRef<number | null>(null);
+
+  const bothLoaded = beforeLoaded && afterLoaded;
+
+  const stopAuto = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, []);
 
   const setFromX = useCallback((clientX: number) => {
     const el = wrapRef.current;
@@ -36,7 +55,40 @@ export function BeforeAfter({ beforeUrl, afterUrl, locked = false, start = 55, o
     }
   }, []);
 
+  // Balayage auto d'intro : 55 -> 88 -> 15 -> 55 en douceur, une seule fois,
+  // des que les 2 images sont pretes. S'interrompt si l'utilisateur touche.
+  useEffect(() => {
+    if (!bothLoaded || interacted.current) return;
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+
+    const waypoints = [55, 88, 15, 55];
+    const duration = 2600;
+    let startT: number | null = null;
+
+    const tick = (now: number) => {
+      if (interacted.current) return;
+      if (startT === null) startT = now;
+      const t = Math.min(1, (now - startT) / duration);
+      const seg = t * (waypoints.length - 1);
+      const i = Math.min(waypoints.length - 2, Math.floor(seg));
+      const local = easeInOut(seg - i);
+      setPos(waypoints[i] + (waypoints[i + 1] - waypoints[i]) * local);
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        rafRef.current = null;
+      }
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return stopAuto;
+  }, [bothLoaded, stopAuto]);
+
   const onDown = (e: React.PointerEvent) => {
+    interacted.current = true;
+    stopAuto();
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     setFromX(e.clientX);
   };
@@ -50,12 +102,14 @@ export function BeforeAfter({ beforeUrl, afterUrl, locked = false, start = 55, o
     else if (e.key === "Home") setPos(0);
     else if (e.key === "End") setPos(100);
     else return;
+    interacted.current = true;
+    stopAuto();
     e.preventDefault();
     setHint(false);
   };
 
   useEffect(() => {
-    const t = setTimeout(() => setHint(false), 3200);
+    const t = setTimeout(() => setHint(false), 4500);
     return () => clearTimeout(t);
   }, []);
 
@@ -73,14 +127,20 @@ export function BeforeAfter({ beforeUrl, afterUrl, locked = false, start = 55, o
         onPointerDown={onDown}
         onPointerMove={onMove}
         onKeyDown={onKey}
-        className="relative aspect-[3/4] w-full cursor-ew-resize touch-none select-none overflow-hidden rounded-[var(--radius-lg)] border border-border outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+        className="relative aspect-[3/4] w-full cursor-ew-resize touch-none select-none overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface-2 outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
       >
+        {/* squelette tant que les images chargent (evite le saut visuel) */}
+        {!bothLoaded && (
+          <div className="absolute inset-0 animate-pulse bg-surface-2" />
+        )}
+
         {/* objectif (dessous), en entier, floute si verrouille */}
         <img
           src={afterUrl}
           alt="Objectif visuel simulé"
           draggable={false}
-          className="absolute inset-0 h-full w-full object-cover"
+          onLoad={() => setAfterLoaded(true)}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${bothLoaded ? "opacity-100" : "opacity-0"}`}
           style={locked ? { filter: "blur(9px)", transform: "scale(1.04)" } : undefined}
         />
         {/* aujourd'hui (dessus), coupe selon la poignee */}
@@ -88,7 +148,8 @@ export function BeforeAfter({ beforeUrl, afterUrl, locked = false, start = 55, o
           src={beforeUrl}
           alt="Ta photo actuelle"
           draggable={false}
-          className="absolute inset-0 h-full w-full object-cover"
+          onLoad={() => setBeforeLoaded(true)}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${bothLoaded ? "opacity-100" : "opacity-0"}`}
           style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}
         />
 
@@ -112,9 +173,9 @@ export function BeforeAfter({ beforeUrl, afterUrl, locked = false, start = 55, o
           </div>
         </div>
 
-        {hint && (
+        {hint && bothLoaded && (
           <span className="pointer-events-none absolute bottom-16 left-1/2 -translate-x-1/2 animate-pulse rounded-full bg-ink/70 px-3 py-1 text-xs text-white backdrop-blur-sm">
-            glisse pour voir
+            glisse pour comparer
           </span>
         )}
 
