@@ -100,11 +100,21 @@ export default function Resultat() {
       const subActive = sub?.status === "active";
       setIsSubscriber(subActive);
 
+      // Filet "avant" : après un refresh, la prise n'est plus en sessionStorage.
+      // On la recharge depuis le storage (before.jpg stocké côté serveur au scan)
+      // pour que l'avant/après s'affiche quand même.
+      if (!sessionStorage.getItem("portraitPhoto")) {
+        const { data: bUrl } = await supabase.storage
+          .from("projections")
+          .createSignedUrl(`${userId}/${scanId}/before.jpg`, 3600);
+        if (bUrl?.signedUrl) setOriginalUrl(bUrl.signedUrl);
+      }
+
       // La projection est lancée en arrière-plan au moment du scan : elle peut
-      // ne pas être prête quand on arrive ici. On attend (poll) jusqu'à ~60 s
-      // tant qu'elle est "generating", au lieu de n'afficher rien.
+      // ne pas être prête. On attend (poll) tant qu'elle est "generating", avec un
+      // intervalle qui s'allonge un peu (snappy au début, ~45 s max au total).
       let proj: { teaser_path: string | null; full_path: string | null; status: string } | null = null;
-      for (let attempt = 0; attempt < 20; attempt++) {
+      for (let attempt = 0; attempt < 14; attempt++) {
         const { data } = await supabase
           .from("projections")
           .select("teaser_path, full_path, status")
@@ -113,7 +123,7 @@ export default function Resultat() {
           .single();
         proj = data;
         if (!proj || proj.status === "done" || proj.status === "failed") break;
-        await new Promise((r) => setTimeout(r, 3000));
+        await new Promise((r) => setTimeout(r, attempt < 6 ? 2500 : 4000));
       }
 
       setProjFailed(proj?.status === "failed");
