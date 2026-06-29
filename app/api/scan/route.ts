@@ -55,19 +55,32 @@ interface AnalysisResult {
 
 function validateResult(obj: Record<string, unknown>): AnalysisResult | null {
   if (typeof obj.usable !== "boolean") return null;
-  if (obj.usable) {
-    if (typeof obj.score !== "number" || obj.score < 0 || obj.score > 100) return null;
-    const validNorwood = ["I", "II", "III", "IV", "V", "VI", "VII"];
-    if (typeof obj.norwood !== "string" || !validNorwood.includes(obj.norwood)) return null;
-  }
-  if (!Array.isArray(obj.zones)) return null;
-  if (!Array.isArray(obj.recommendations) || obj.recommendations.length < 1) return null;
   if (typeof obj.message !== "string") return null;
 
+  // Photo INEXPLOITABLE : on n'exige RIEN d'autre (zones/reco/score peuvent manquer)
+  // -> on renvoie un résultat "non exploitable" propre (message "réessaie") au lieu
+  // de planter en "Invalid schema".
+  if (!obj.usable) {
+    return {
+      usable: false, score: null, norwood: null,
+      zones: Array.isArray(obj.zones) ? (obj.zones as string[]) : [],
+      recommendations: Array.isArray(obj.recommendations) ? (obj.recommendations as string[]) : [],
+      message: obj.message as string,
+      confidence: (obj.confidence as string) || "low",
+    };
+  }
+
+  // Photo exploitable : on exige les données utiles.
+  if (typeof obj.score !== "number" || obj.score < 0 || obj.score > 100) return null;
+  const validNorwood = ["I", "II", "III", "IV", "V", "VI", "VII"];
+  if (typeof obj.norwood !== "string" || !validNorwood.includes(obj.norwood)) return null;
+  if (!Array.isArray(obj.zones)) return null;
+  if (!Array.isArray(obj.recommendations) || obj.recommendations.length < 1) return null;
+
   return {
-    usable: obj.usable as boolean,
-    score: obj.usable ? (obj.score as number) : null,
-    norwood: obj.usable ? (obj.norwood as string) : null,
+    usable: true,
+    score: obj.score as number,
+    norwood: obj.norwood as string,
     zones: obj.zones as string[],
     recommendations: obj.recommendations as string[],
     message: obj.message as string,
