@@ -36,16 +36,19 @@ export async function POST(req: Request) {
     // Rattache les réponses du questionnaire (anonymes, liées au cookie de session)
     // au nouveau compte. Sans ça, la perso (objectif) est perdue pour les
     // inscriptions par email (seul Google le faisait via auth/callback).
-    const userId = data.user?.id;
-    if (userId) {
+    // NON BLOQUANT : si ça échoue, l'inscription réussit quand même.
+    try {
+      const userId = data.user?.id;
       const sessionId = (await cookies()).get("scalpy_sid")?.value;
-      if (sessionId) {
+      if (userId && sessionId) {
         await admin
           .from("onboarding_responses")
           .update({ user_id: userId })
           .eq("session_id", sessionId)
           .is("user_id", null);
       }
+    } catch (e) {
+      console.error("[signup] Rattachement onboarding échoué (non bloquant):", e);
     }
 
     return NextResponse.json({ ok: true });

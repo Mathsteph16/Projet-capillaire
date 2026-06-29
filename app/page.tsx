@@ -32,7 +32,7 @@ const HERO_VARIANTS: HeroVariant[] = [
     key: "B",
     headline: "Ta densité capillaire sur 100. Mesurée et suivie, mois après mois.",
     sub: "Scanne ton crâne, reçois ton score, tes zones et ton stade. Re-scanne chaque mois et vois ta courbe. Gratuit pour commencer.",
-    cta: "Voir mon score",
+    cta: "Faire mon scan gratuit",
   },
 ];
 

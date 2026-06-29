@@ -70,7 +70,10 @@ const QUIZ: QuizStep[] = [
   },
 ];
 
-const TOTAL_SCREENS = QUIZ.length + 2; // 5 questions + transition + account
+const TOTAL_SCREENS = QUIZ.length + 2; // 5 questions + transition + account (logique interne)
+// Compteur AFFICHE : on ne compte PAS la creation de compte (ce n'est pas une
+// question) -> temps percu plus court.
+const DISPLAY_TOTAL = QUIZ.length + 1;
 
 export default function Onboarding() {
   const [step, setStep] = useState(0);
@@ -81,9 +84,9 @@ export default function Onboarding() {
     trackEvent("onboarding_started");
   }, []);
 
-  const progress = ((step + 1) / TOTAL_SCREENS) * 100;
   const isTransition = step === QUIZ.length;
   const isSignup = step === QUIZ.length + 1;
+  const progress = Math.min(100, ((step + 1) / DISPLAY_TOTAL) * 100);
 
   const saveToServer = useCallback(async (data: Record<string, string>, currentStep: number) => {
     try {
@@ -131,7 +134,7 @@ export default function Onboarding() {
       <div className="w-full max-w-md">
         <ProgressBar value={progress} className="mb-2" />
         <p className="mb-8 text-xs text-text-faint">
-          {step + 1} / {TOTAL_SCREENS}
+          {isSignup ? "Dernière étape" : `${step + 1} / ${DISPLAY_TOTAL}`}
         </p>
 
         <div
@@ -169,20 +172,20 @@ export default function Onboarding() {
                   setStep((s) => s + 1);
                 }}
               >
-                Lancer mon bilan
+                Lancer mon scan gratuit
               </Button>
             </div>
           ) : (
             <div className="space-y-6">
               <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
-                Crée ton espace pour recevoir ton bilan
+                Crée ton compte pour lancer ton scan gratuit
               </h1>
               <p className="text-base text-text-muted">
-                Ton bilan et ton suivi sont liés à ton compte. 30 secondes, et c'est à toi.
+                Dernière étape : ton compte garde ton scan et tes résultats en mémoire. 30 secondes, puis on scanne.
               </p>
               <AuthForm mode="signup" onSuccess={handleAuthSuccess} />
               <p className="text-xs text-text-faint">
-                Tes photos restent privées. Tu peux tout supprimer quand tu veux.
+                Gratuit. Tes photos restent privées, tu peux tout supprimer quand tu veux.
               </p>
             </div>
           )}
