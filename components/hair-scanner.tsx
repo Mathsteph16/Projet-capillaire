@@ -690,7 +690,7 @@ export default function HairScanner({ onAllCaptured }: Props) {
         </h2>
       </div>
 
-      <div className="relative mx-auto aspect-[3/4] max-h-[58vh] w-full overflow-hidden rounded-[16px] bg-surface-2">
+      <div className="relative mx-auto aspect-[3/4] max-h-[52vh] w-full overflow-hidden rounded-[16px] bg-surface-2">
         <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" style={{ transform: "scaleX(-1)" }} />
         <canvas ref={overlayRef} className="pointer-events-none absolute inset-0 h-full w-full object-cover" style={{ transform: "scaleX(-1)" }} />
         <canvas ref={captureRef} className="hidden" />
@@ -789,23 +789,24 @@ export default function HairScanner({ onAllCaptured }: Props) {
           )}
         </div>
 
-        {(status === "ready" || status === "aligning") && (
-          <div className="absolute bottom-16 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5">
-            <button
-              onClick={doCapture}
-              className={`flex h-16 w-16 items-center justify-center rounded-full border-4 border-accent bg-accent/20 transition-transform active:scale-95 ${
-                struggling ? "animate-pulse ring-4 ring-accent/40" : ""
-              }`}
-              aria-label="Prendre la photo"
-            >
-              <div className="h-12 w-12 rounded-full bg-accent" />
-            </button>
-            <span className="rounded-full bg-ink/55 px-2.5 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur-sm">
-              {currentPhase?.auto ? "Auto, ou appuie" : "Appuie pour la photo"}
-            </span>
-          </div>
-        )}
       </div>
+
+      {/* Capture MANUELLE sous la caméra (ne chevauche plus le visage). L'auto se
+          déclenche dès que c'est bien cadré ; ce bouton est le filet. */}
+      {(status === "ready" || status === "aligning") && (
+        <button
+          onClick={doCapture}
+          className={`mx-auto flex items-center gap-2 rounded-[var(--radius-md)] border px-5 py-2.5 text-sm font-medium transition-colors ${
+            struggling
+              ? "animate-pulse border-accent bg-accent-soft text-accent"
+              : "border-border bg-surface text-text hover:bg-surface-2"
+          }`}
+          aria-label="Prendre la photo maintenant"
+        >
+          <span className="inline-block h-3.5 w-3.5 rounded-full bg-accent" />
+          Prendre la photo maintenant
+        </button>
+      )}
 
       {/* Repli toujours accessible : la camera coince ? on importe une photo. */}
       <div className="text-center">
