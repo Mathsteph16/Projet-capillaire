@@ -92,12 +92,16 @@ export default function AuthForm({
           }
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+        // Connexion CÔTÉ SERVEUR (rapide) : pose le cookie de session, pas de
+        // signInWithPassword navigateur lent.
+        const res = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
         });
-        if (error) {
-          setMessage(humanError(error.message));
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setMessage(humanError(data.error || "Email ou mot de passe incorrect."));
         } else {
           if (onSuccess) {
             onSuccess();

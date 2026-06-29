@@ -17,7 +17,10 @@ export function useAuthState(): AuthState {
     let active = true;
 
     async function resolve() {
-      const { data: { user } } = await supabase.auth.getUser();
+      // getSession() lit la session en LOCAL (instantané) au lieu de getUser()
+      // qui fait un aller-retour réseau lent -> la nav s'affiche tout de suite.
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!active) return;
       if (!user) { setState("out"); return; }
       const { data: sub } = await supabase
