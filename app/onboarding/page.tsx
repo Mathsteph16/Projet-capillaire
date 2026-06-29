@@ -103,15 +103,15 @@ export default function Onboarding() {
   const selectOption = useCallback(
     (key: string, value: string) => {
       const updated = { ...answers, [key]: value };
-      setAnswers(updated);
+      setAnswers(updated); // la réponse devient "sélectionnée" -> la pastille se remplit
 
       trackEvent("quiz_step_completed", { step: key, answer: value });
       saveToServer(updated, step); // fire-and-forget : ne bloque jamais l'écran
 
-      // Passage INSTANTANÉ à la question suivante (l'animation de glissement
-      // reste fluide via key={step}, mais zéro attente).
+      // Délai TRÈS court (160 ms) : juste assez pour VOIR la sélection se remplir
+      // (sinon on ne voit rien), mais ça reste quasi-instantané.
       setDirection("next");
-      setStep((s) => s + 1);
+      setTimeout(() => setStep((s) => s + 1), 160);
     },
     [answers, step, saveToServer]
   );

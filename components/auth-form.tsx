@@ -68,8 +68,15 @@ export default function AuthForm({
         if (!res.ok) {
           setMessage(humanError(data.error || "Inscription impossible."));
         } else {
-          const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-          if (signInError) {
+          // Filet : si la connexion traîne (>12s), le compte EST créé -> on force
+          // la suite au lieu de laisser tourner dans le vide. La page suivante
+          // lira la session (ou enverra se connecter, état récupérable).
+          const signIn = supabase.auth.signInWithPassword({ email, password });
+          const timeout = new Promise<{ error: { message: string } | null }>((resolve) =>
+            setTimeout(() => resolve({ error: { message: "__timeout__" } }), 12000)
+          );
+          const { error: signInError } = (await Promise.race([signIn, timeout])) as { error: { message: string } | null };
+          if (signInError && signInError.message !== "__timeout__") {
             setMessage(humanError(signInError.message));
           } else {
             trackEvent("inscription");
