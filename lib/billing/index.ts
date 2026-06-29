@@ -19,10 +19,14 @@ export interface WebhookEvent {
 export interface BillingProvider {
   createCheckout(input: CheckoutInput): Promise<{ url: string }>;
   verifyWebhook(req: Request): Promise<WebhookEvent | null>;
+  /** Annule l'abonnement chez le prestataire (stoppe les prélèvements). */
+  cancelSubscription(subscriptionId: string): Promise<void>;
 }
 
-export { LemonSqueezyProvider } from "./lemonsqueezy";
+import { LemonSqueezyProvider } from "./lemonsqueezy";
+
+export { LemonSqueezyProvider };
 
 export function getBillingProvider(): BillingProvider {
-  return new (require("./lemonsqueezy").LemonSqueezyProvider)();
+  return new LemonSqueezyProvider();
 }

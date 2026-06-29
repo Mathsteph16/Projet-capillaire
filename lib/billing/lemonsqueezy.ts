@@ -48,6 +48,20 @@ export class LemonSqueezyProvider implements BillingProvider {
     return { url: json.data.attributes.url };
   }
 
+  async cancelSubscription(subscriptionId: string): Promise<void> {
+    if (!this.apiKey || !subscriptionId) return;
+    const res = await fetch(`https://api.lemonsqueezy.com/v1/subscriptions/${subscriptionId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        Accept: "application/vnd.api+json",
+      },
+    });
+    if (!res.ok) {
+      console.error(`[LemonSqueezy] Annulation échouée (${subscriptionId}): ${await res.text()}`);
+    }
+  }
+
   async verifyWebhook(req: Request): Promise<WebhookEvent | null> {
     const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? "";
     // Sans secret configuré, on refuse tout : pas de webhook accepté en aveugle.

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getBillingProvider } from "@/lib/billing";
 
 export async function DELETE() {
   try {
@@ -12,6 +13,21 @@ export async function DELETE() {
     }
 
     const admin = createAdminClient();
+
+    // Avant tout : annuler l'abonnement chez le prestataire, sinon le compte
+    // supprimé continue d'être prélevé (factures fantômes, réclamations RGPD).
+    const { data: sub } = await admin
+      .from("subscriptions")
+      .select("provider_subscription_id")
+      .eq("user_id", user.id)
+      .single();
+    if (sub?.provider_subscription_id) {
+      try {
+        await getBillingProvider().cancelSubscription(sub.provider_subscription_id);
+      } catch (e) {
+        console.error("Annulation abo à la suppression de compte échouée:", e);
+      }
+    }
 
     // Delete storage files
     const buckets = ["scalp-photos", "projections", "photos"];
