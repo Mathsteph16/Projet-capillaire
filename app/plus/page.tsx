@@ -21,6 +21,7 @@ export default function Plus() {
   const [objectif, setObjectif] = useState<string | null>(null);
   const [plan, setPlan] = useState<Plan>("annual");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     trackEvent("paywall_viewed");
@@ -43,23 +44,33 @@ export default function Plus() {
 
   async function handleCheckout() {
     setLoading(true);
+    setError("");
     trackEvent("checkout_started", { plan });
 
+    // Timeout : le bouton ne reste jamais bloque sur "chargement".
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20_000);
     try {
       const variant = plan === "annual" ? "plus_annual" : "plus_monthly";
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan: variant }),
+        signal: controller.signal,
       });
-      const data = await res.json();
-      if (data.url) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) {
         window.location.href = data.url;
-      } else {
-        setLoading(false);
+        return; // on garde le loading actif pendant la redirection
       }
-    } catch {
+      // Echec : on le DIT clairement (avant : clic sans rien -> abandon).
+      setError(data.error || "Le paiement n'a pas pu démarrer. Réessaie dans un instant.");
       setLoading(false);
+    } catch {
+      setError("Connexion interrompue. Vérifie ta connexion et réessaie.");
+      setLoading(false);
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -152,6 +163,10 @@ export default function Plus() {
         >
           Débloquer mon plan
         </Button>
+
+        {error && (
+          <p className="text-center text-sm text-danger" role="alert">{error}</p>
+        )}
 
         {/* Réassurance */}
         <p className="text-center text-xs text-text-faint">
