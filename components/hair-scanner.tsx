@@ -529,7 +529,10 @@ export default function HairScanner({ onAllCaptured }: Props) {
         let stream: MediaStream;
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: "user" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+            // Resolution portrait 3:4 plus haute (photo source plus nette = avant/apres
+            // plus net). "ideal" s'auto-equilibre : un bon telephone monte en detail,
+            // un appareil modeste reste leger (pas de perte de fluidite).
+            video: { facingMode: { ideal: "user" }, width: { ideal: 1080 }, height: { ideal: 1440 } },
             audio: false,
           });
         } catch (e) {

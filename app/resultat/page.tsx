@@ -309,7 +309,7 @@ export default function Resultat() {
 
             <div className="flex items-center justify-between text-xs text-text-faint">
               <span>
-                Norwood {result.norwood || "?"} · Score {result.score}/100
+                Stade {result.norwood || "?"} · Score {result.score}/100
               </span>
               <span className="font-data font-medium">12 semaines</span>
             </div>
@@ -348,11 +348,14 @@ export default function Resultat() {
         {result.norwood && (
           <Card>
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-text-muted">Stade estimé</p>
+              <p className="text-sm font-medium text-text-muted">Ton stade de dégarnissement</p>
               <Badge variant="accent">{result.norwood}</Badge>
             </div>
             <p className="mt-3 text-sm text-text-muted">
               {NORWOOD_DESC[result.norwood] || "Stade estimé."}
+            </p>
+            <p className="mt-2 text-xs text-text-faint">
+              C'est l'échelle de référence (I à VII) : de « aucun signe » à « avancé ». Tu es au stade {result.norwood}.
             </p>
             <div className="mt-4 flex gap-1">
               {["I", "II", "III", "IV", "V", "VI", "VII"].map((s) => (
@@ -362,6 +365,10 @@ export default function Resultat() {
                   {s}
                 </div>
               ))}
+            </div>
+            <div className="mt-1.5 flex justify-between text-[10px] text-text-faint">
+              <span>aucun signe</span>
+              <span>avancé</span>
             </div>
           </Card>
         )}
@@ -376,6 +383,9 @@ export default function Resultat() {
                 <Badge key={z} variant="signal">{z}</Badge>
               ))}
             </div>
+            <p className="mt-3 text-center text-xs text-text-faint">
+              Golfes = les coins du front · Vertex / couronne = le sommet du crâne · Ligne frontale = le devant
+            </p>
           </Card>
         )}
 
