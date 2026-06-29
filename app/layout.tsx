@@ -42,13 +42,24 @@ export const metadata: Metadata = {
     "bien-être capillaire",
     "analyse IA",
   ],
+  alternates: { canonical: "/" },
   openGraph: {
     title: "Scalpy · Sache où en sont tes cheveux, en une photo",
     description:
       "Ton score de densité, tes zones et ton stade en 30 secondes, plus l'aperçu de ton objectif.",
     type: "website",
+    url: "https://www.scalpy-app.com",
     locale: "fr_FR",
     siteName: "Scalpy",
+    // Image de partage provisoire (logo). À remplacer par un visuel 1200×630 dédié.
+    images: [{ url: "/icon-512.png", width: 512, height: 512, alt: "Scalpy" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Scalpy · Sache où en sont tes cheveux, en une photo",
+    description:
+      "Ton score de densité, tes zones et ton stade en 30 secondes, plus l'aperçu de ton objectif.",
+    images: ["/icon-512.png"],
   },
   icons: {
     icon: "/favicon.svg",

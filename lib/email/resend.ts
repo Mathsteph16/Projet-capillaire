@@ -1,6 +1,6 @@
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM = "Scalpy <noreply@scalpy.app>";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://scalpy.app";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.scalpy-app.com";
 
 interface SendEmailInput {
   to: string;
