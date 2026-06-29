@@ -248,7 +248,7 @@ export default function AppPage() {
         <div>
           <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">Ton espace</h1>
           <p className="text-sm text-text-muted">
-            Jour {currentDay}/30 — Semaine {currentWeek}
+            Jour {currentDay}/30 ·Semaine {currentWeek}
           </p>
         </div>
 
@@ -289,7 +289,7 @@ export default function AppPage() {
               </div>
             </div>
             <p className="mt-3 text-xs text-signal text-center">
-              Simulation — objectif visuel, pas une prédiction
+              Simulation ·objectif visuel, pas une prédiction
             </p>
             <a
               href={projection.fullUrl}

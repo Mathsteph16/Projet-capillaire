@@ -78,7 +78,7 @@ function BeforeAfterSlider({
         </span>
       </div>
       <p className="text-center text-xs font-medium text-signal">
-        Simulation — objectif visuel, pas une prédiction
+        Simulation ·objectif visuel, pas une prédiction
       </p>
     </div>
   );

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Questionnaire — Scalpy",
+  title: "Questionnaire · Scalpy",
   description: "Quelques questions pour personnaliser ton analyse capillaire.",
 };
 

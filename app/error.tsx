@@ -13,7 +13,7 @@ export default function Error({
         Quelque chose s'est mal passé
       </h1>
       <p className="mt-2 text-sm text-muted">
-        Pas de panique — réessaie et ça devrait marcher.
+        Pas de panique, réessaie et ça devrait marcher.
       </p>
       <button
         onClick={reset}

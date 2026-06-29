@@ -263,7 +263,7 @@ export default function Resultat() {
 
             <div className="flex items-center justify-between text-xs text-text-faint">
               <span>
-                Norwood {result.norwood || "?"} — Score {result.score}/100
+                Norwood {result.norwood || "?"} ·Score {result.score}/100
               </span>
               <span className="font-data font-medium">12 semaines</span>
             </div>

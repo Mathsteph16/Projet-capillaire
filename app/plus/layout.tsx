@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Offres — Scalpy",
+  title: "Offres · Scalpy",
   description: "Protocole personnalisé, suivi de repousse et analyses comparatives.",
 };
 

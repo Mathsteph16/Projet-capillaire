@@ -29,9 +29,9 @@ const dataFont = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Scalpy — Scanne tes cheveux, sache où tu en es",
+  title: "Scalpy ·Scanne tes cheveux, sache où tu en es",
   description:
-    "Analyse ton cuir chevelu en 30 secondes. Score de densité, stade Norwood, zones fragiles et objectif visuel — gratuit, depuis ton téléphone.",
+    "Analyse ton cuir chevelu en 30 secondes. Score de densité, stade Norwood, zones fragiles et objectif visuel ·gratuit, depuis ton téléphone.",
   keywords: [
     "perte de cheveux",
     "scan capillaire",
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     "analyse IA",
   ],
   openGraph: {
-    title: "Scalpy — Scanne tes cheveux, sache où tu en es",
+    title: "Scalpy ·Scanne tes cheveux, sache où tu en es",
     description:
       "Score de densité, stade Norwood et objectif visuel en 30 secondes.",
     type: "website",

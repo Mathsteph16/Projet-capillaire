@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Politique de confidentialité — Scalpy",
+  title: "Politique de confidentialité ·Scalpy",
 };
 
 export default function Confidentialite() {
@@ -18,7 +18,7 @@ export default function Confidentialite() {
             Responsable du traitement
           </h2>
           <p>
-            Mathias Stephant — mathias.stephant@gmail.com
+            Mathias Stephant ·mathias.stephant@gmail.com
           </p>
         </section>
 
@@ -86,7 +86,7 @@ export default function Confidentialite() {
             suivi mensuel nécessite de comparer tes scans dans le temps. Après
             12 mois d'inactivité, tes données sont purgées automatiquement. Tu
             peux supprimer un scan précis ou ton compte entier à tout moment
-            depuis les paramètres de l'app — la suppression est réelle et
+            depuis les paramètres de l'app ·la suppression est réelle et
             complète (données, photos, fichiers).
           </p>
         </section>
@@ -141,31 +141,31 @@ export default function Confidentialite() {
           <ul className="list-inside list-disc space-y-1">
             <li>
               <span className="text-foreground">Railway</span> (hébergement
-              applicatif) — États-Unis
+              applicatif) ·États-Unis
             </li>
             <li>
               <span className="text-foreground">Supabase</span> (base de
-              données, stockage, authentification) — Région UE (Frankfurt)
+              données, stockage, authentification) ·Région UE (Frankfurt)
             </li>
             <li>
               <span className="text-foreground">Anthropic</span> (analyse IA
-              des photos) — États-Unis
+              des photos) ·États-Unis
             </li>
             <li>
               <span className="text-foreground">fal.ai / Google</span>{" "}
-              (génération d'image pour la projection) — États-Unis
+              (génération d'image pour la projection) ·États-Unis
             </li>
             <li>
               <span className="text-foreground">Lemon Squeezy</span> (paiement,
-              Merchant-of-Record) — États-Unis
+              Merchant-of-Record) ·États-Unis
             </li>
             <li>
               <span className="text-foreground">Resend</span> (emails
-              transactionnels) — États-Unis
+              transactionnels) ·États-Unis
             </li>
             <li>
               <span className="text-foreground">Google</span> (authentification
-              OAuth, optionnel) — États-Unis
+              OAuth, optionnel) ·États-Unis
             </li>
           </ul>
         </section>
