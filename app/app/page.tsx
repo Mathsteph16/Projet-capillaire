@@ -79,7 +79,8 @@ export default function AppPage() {
     trackEvent("app_viewed");
 
     const supabase = createClient();
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const user = session?.user;
       if (!user) { router.push("/auth"); return; }
 
       // Check subscription
@@ -211,7 +212,8 @@ export default function AppPage() {
 
   async function toggleTask(taskId: string) {
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return;
 
     const newCompleted = new Set(completedTasks);
@@ -424,7 +426,8 @@ export default function AppPage() {
                 const next = !marketingConsent;
                 setMarketingConsent(next);
                 const supabase = createClient();
-                const { data: { user } } = await supabase.auth.getUser();
+                const { data: { session } } = await supabase.auth.getSession();
+                const user = session?.user;
                 if (user) {
                   await supabase.from("profiles").update({ marketing_consent: next }).eq("id", user.id);
                 }

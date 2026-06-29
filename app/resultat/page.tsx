@@ -169,7 +169,8 @@ export default function Resultat() {
       setResult(parsed);
       setLoading(false);
 
-      supabase.auth.getUser().then(({ data: { user } }) => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        const user = session?.user;
         if (user) {
           if (parsed.scanId) loadProjection(user.id, parsed.scanId);
           loadObjectif(user.id);
@@ -178,7 +179,8 @@ export default function Resultat() {
       return;
     }
 
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const user = session?.user;
       if (!user) { setLoading(false); setProjectionLoading(false); return; }
       const { data } = await supabase
         .from("scans")

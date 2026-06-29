@@ -48,8 +48,8 @@ export default function Scan() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) router.push("/auth?next=/scan");
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) router.push("/auth?next=/scan");
     });
   }, [router]);
 

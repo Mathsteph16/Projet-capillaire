@@ -6,15 +6,18 @@ export async function trackEvent(
 ) {
   try {
     const supabase = createClient();
+    // getSession() : lecture LOCALE instantanée. getUser() faisait un appel réseau
+    // qui prend le verrou d'auth navigateur et le bloque -> bloquait l'analyse
+    // (95%) et empêchait le tracking de se logger. Ne JAMAIS getUser ici.
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
 
     const sessionId = getSessionId();
 
     await supabase.from("events").insert({
       session_id: sessionId,
-      user_id: user?.id ?? null,
+      user_id: session?.user?.id ?? null,
       name,
       props: props ?? {},
     });

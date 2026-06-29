@@ -27,7 +27,8 @@ export default function Plus() {
     trackEvent("paywall_viewed");
 
     const supabase = createClient();
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const user = session?.user;
       if (!user) return;
       const { data } = await supabase
         .from("onboarding_responses")
