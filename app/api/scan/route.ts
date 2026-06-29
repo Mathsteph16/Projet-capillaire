@@ -163,27 +163,30 @@ export async function POST(request: Request) {
   }
 
   try {
-    const formData = await request.formData();
-    const file = formData.get("photo") as File | null;
-    const fileTop = formData.get("photo_top") as File | null;
+    // Photos envoyées en base64 dans du JSON. Le multipart/formData casse sur ce
+    // déploiement Next 16 ("Failed to parse body as FormData") -> JSON = fiable
+    // (comme l'inscription et la projection qui fonctionnent).
+    const body = (await request.json().catch(() => null)) as { photo?: unknown; photoTop?: unknown } | null;
+    const decode = (d: unknown): { mediaType: string; buffer: Buffer } | null => {
+      if (typeof d !== "string") return null;
+      const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(d);
+      if (!m) return null;
+      return { mediaType: m[1], buffer: Buffer.from(m[2], "base64") };
+    };
 
-    if (!file) return NextResponse.json({ error: "Aucune photo envoyée" }, { status: 400 });
-    if (file.size > 10 * 1024 * 1024) return NextResponse.json({ error: "Photo trop lourde (max 10 Mo)" }, { status: 400 });
-    // N'envoyer à l'IA (facturée) que des images réelles, jamais un autre type déguisé.
-    const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
-    if (!ALLOWED.includes(file.type)) {
-      return NextResponse.json({ error: "Format non supporté (JPEG, PNG ou WebP)" }, { status: 400 });
-    }
+    const main = decode(body?.photo);
+    if (!main) return NextResponse.json({ error: "Aucune photo valide envoyée" }, { status: 400 });
+    if (main.buffer.length > 10 * 1024 * 1024) return NextResponse.json({ error: "Photo trop lourde (max 10 Mo)" }, { status: 400 });
 
-    const bytes = await file.arrayBuffer();
-    const base64 = Buffer.from(bytes).toString("base64");
-    const mediaType = file.type || "image/jpeg";
+    const bytes = main.buffer;
+    const base64 = main.buffer.toString("base64");
+    const mediaType = main.mediaType;
 
     // Image du dessus du crâne (optionnelle) : on l'ajoute à l'analyse si valide.
     const images: ScanImage[] = [{ base64, mediaType }];
-    if (fileTop && fileTop.size > 0 && fileTop.size <= 10 * 1024 * 1024 && ALLOWED.includes(fileTop.type)) {
-      const topBytes = await fileTop.arrayBuffer();
-      images.push({ base64: Buffer.from(topBytes).toString("base64"), mediaType: fileTop.type });
+    const top = decode(body?.photoTop);
+    if (top && top.buffer.length > 0 && top.buffer.length <= 10 * 1024 * 1024) {
+      images.push({ base64: top.buffer.toString("base64"), mediaType: top.mediaType });
     }
 
     const model = process.env.SCAN_MODEL || "claude-haiku-4-5-20251001";
