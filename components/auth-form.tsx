@@ -67,10 +67,16 @@ export default function AuthForm({
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           setMessage(humanError(data.error || "Inscription impossible."));
+        } else if (data.signedIn) {
+          // RAPIDE : la session est DÉJÀ posée côté serveur (cookie) -> on navigue
+          // direct, sans le signInWithPassword navigateur qui traînait ~8s.
+          trackEvent("inscription");
+          setIsSuccess(true);
+          if (onSuccess) onSuccess();
+          else window.location.assign(redirectTo);
         } else {
-          // Filet : si la connexion traîne (>12s), le compte EST créé -> on force
-          // la suite au lieu de laisser tourner dans le vide. La page suivante
-          // lira la session (ou enverra se connecter, état récupérable).
+          // Filet : la connexion serveur a échoué -> on la refait côté client,
+          // avec timeout 12s pour ne jamais rester bloqué.
           const signIn = supabase.auth.signInWithPassword({ email, password });
           const timeout = new Promise<{ error: { message: string } | null }>((resolve) =>
             setTimeout(() => resolve({ error: { message: "__timeout__" } }), 12000)
@@ -81,12 +87,8 @@ export default function AuthForm({
           } else {
             trackEvent("inscription");
             setIsSuccess(true);
-            if (onSuccess) {
-              onSuccess();
-            } else {
-              // Navigation dure : garantit que la page lit la session fraiche.
-              window.location.assign(redirectTo);
-            }
+            if (onSuccess) onSuccess();
+            else window.location.assign(redirectTo);
           }
         }
       } else {

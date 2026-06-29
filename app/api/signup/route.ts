@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 // Création de compte SANS confirmation d'email (zéro friction) : on crée
 // l'utilisateur côté serveur avec email_confirm forcé, il peut se connecter
@@ -51,7 +52,20 @@ export async function POST(req: Request) {
       console.error("[signup] Rattachement onboarding échoué (non bloquant):", e);
     }
 
-    return NextResponse.json({ ok: true });
+    // Connexion CÔTÉ SERVEUR : pose directement le cookie de session dans la
+    // réponse. Le navigateur n'a plus besoin d'appeler signInWithPassword (qui
+    // traînait ~8s à cause d'un verrou interne). L'inscription devient quasi
+    // instantanée. Si ça échoue, le client refera la connexion (filet).
+    let signedIn = false;
+    try {
+      const supabase = await createClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      signedIn = !signInError;
+    } catch (e) {
+      console.error("[signup] Connexion serveur échouée (le client réessaiera):", e);
+    }
+
+    return NextResponse.json({ ok: true, signedIn });
   } catch {
     return NextResponse.json({ error: "Une erreur est survenue." }, { status: 500 });
   }
