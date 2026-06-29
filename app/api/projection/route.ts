@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { trackEventServer } from "@/lib/track-server";
@@ -25,9 +26,28 @@ function rateLimited(userId: string): boolean {
   return false;
 }
 
+// Appel externe borné dans le temps : un fournisseur lent ne bloque jamais la
+// requête indéfiniment (libère la fonction serverless).
+async function fetchTimeout(url: string, init: RequestInit, ms = 45_000): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function storeResult(admin: ReturnType<typeof createAdminClient>, userId: string, scanId: string, buffer: Buffer) {
   await admin.storage.from("projections").upload(`${userId}/${scanId}/full.jpg`, buffer, { contentType: "image/jpeg", upsert: true });
-  await admin.storage.from("projections").upload(`${userId}/${scanId}/teaser.jpg`, buffer, { contentType: "image/jpeg", upsert: true });
+  // Teaser VOLONTAIREMENT dégradé (réduit + fortement flouté) : même récupéré
+  // en direct via son URL, il ne révèle pas le résultat net. La version nette
+  // (full.jpg) n'est servie qu'aux abonnés (cf. page résultat).
+  let teaser = buffer;
+  try {
+    teaser = await sharp(buffer).resize(420).blur(16).jpeg({ quality: 38 }).toBuffer();
+  } catch { teaser = buffer; }
+  await admin.storage.from("projections").upload(`${userId}/${scanId}/teaser.jpg`, teaser, { contentType: "image/jpeg", upsert: true });
 }
 
 export async function POST(req: Request) {
@@ -87,7 +107,7 @@ export async function POST(req: Request) {
     // s'aligne au pixel avec l'avant. On ne touche qu'a la zone masquee (cheveux).
     if (falKey && beforeImage && maskImage) {
       try {
-        const falRes = await fetch("https://fal.run/fal-ai/flux-pro/v1/fill", {
+        const falRes = await fetchTimeout("https://fal.run/fal-ai/flux-pro/v1/fill", {
           method: "POST",
           headers: { Authorization: `Key ${falKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -130,7 +150,7 @@ export async function POST(req: Request) {
           }
         }
         if (imageUrl) {
-          const falRes = await fetch("https://fal.run/fal-ai/gemini-2-flash/image", {
+          const falRes = await fetchTimeout("https://fal.run/fal-ai/gemini-2-flash/image", {
             method: "POST",
             headers: { Authorization: `Key ${falKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({ prompt: AFTER_PROMPT, image_url: imageUrl }),
@@ -164,10 +184,10 @@ export async function POST(req: Request) {
           if (photoData) b64Src = `data:image/jpeg;base64,${Buffer.from(await photoData.arrayBuffer()).toString("base64")}`;
         }
         if (b64Src) {
-          const openaiRes = await fetch("https://api.openai.com/v1/images/edits", {
+          const openaiRes = await fetchTimeout("https://api.openai.com/v1/images/edits", {
             method: "POST",
             headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "gpt-image-1.5", prompt: AFTER_PROMPT, image: b64Src }),
+            body: JSON.stringify({ model: "gpt-image-1", prompt: AFTER_PROMPT, image: b64Src }),
           });
           if (openaiRes.ok) {
             const data = await openaiRes.json();

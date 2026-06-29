@@ -77,6 +77,7 @@ export default function Resultat() {
   const [objectif, setObjectif] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [projectionLoading, setProjectionLoading] = useState(true);
+  const [isSubscriber, setIsSubscriber] = useState(false);
 
   useEffect(() => {
     trackEvent("result_viewed");
@@ -96,6 +97,15 @@ export default function Resultat() {
         .eq("scan_id", scanId)
         .single();
 
+      // Abonné ou non : décide si on a le droit de servir l'image NETTE.
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("status")
+        .eq("user_id", userId)
+        .single();
+      const subActive = sub?.status === "active";
+      setIsSubscriber(subActive);
+
       if (proj?.status === "done") {
         if (proj.teaser_path) {
           const { data: url } = await supabase.storage
@@ -103,7 +113,9 @@ export default function Resultat() {
             .createSignedUrl(proj.teaser_path, 3600);
           if (url?.signedUrl) setTeaserUrl(url.signedUrl);
         }
-        if (proj.full_path) {
+        // L'URL signée de la version nette n'est créée QUE pour un abonné actif.
+        // Un non-abonné ne reçoit jamais le full : impossible de contourner le flou.
+        if (subActive && proj.full_path) {
           const { data: url } = await supabase.storage
             .from("projections")
             .createSignedUrl(proj.full_path, 3600);
@@ -218,8 +230,8 @@ export default function Resultat() {
           {hasProjection ? (
             <BeforeAfter
               beforeUrl={originalUrl}
-              afterUrl={fullProjectionUrl || teaserUrl!}
-              locked
+              afterUrl={isSubscriber ? (fullProjectionUrl || teaserUrl!) : teaserUrl!}
+              locked={!isSubscriber}
               onUnlock={() => { trackEvent("unlock_click"); window.location.assign("/plus"); }}
             />
           ) : (
