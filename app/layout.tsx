@@ -51,15 +51,14 @@ export const metadata: Metadata = {
     url: "https://www.scalpy-app.com",
     locale: "fr_FR",
     siteName: "Scalpy",
-    // Image de partage provisoire (logo). À remplacer par un visuel 1200×630 dédié.
-    images: [{ url: "/icon-512.png", width: 512, height: 512, alt: "Scalpy" }],
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Scalpy — analyse capillaire en une photo" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Scalpy · Sache où en sont tes cheveux, en une photo",
     description:
       "Ton score de densité, tes zones et ton stade en 30 secondes, plus l'aperçu de ton objectif.",
-    images: ["/icon-512.png"],
+    images: ["/og.png"],
   },
   icons: {
     icon: "/favicon.svg",

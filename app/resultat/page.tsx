@@ -89,14 +89,6 @@ export default function Resultat() {
     const supabase = createClient();
 
     async function loadProjection(userId: string, scanId: string) {
-      // Server-side projection overrides client-side if available
-      const { data: proj } = await supabase
-        .from("projections")
-        .select("teaser_path, full_path, status")
-        .eq("user_id", userId)
-        .eq("scan_id", scanId)
-        .single();
-
       // Abonné ou non : décide si on a le droit de servir l'image NETTE.
       const { data: sub } = await supabase
         .from("subscriptions")
@@ -105,6 +97,22 @@ export default function Resultat() {
         .single();
       const subActive = sub?.status === "active";
       setIsSubscriber(subActive);
+
+      // La projection est lancée en arrière-plan au moment du scan : elle peut
+      // ne pas être prête quand on arrive ici. On attend (poll) jusqu'à ~60 s
+      // tant qu'elle est "generating", au lieu de n'afficher rien.
+      let proj: { teaser_path: string | null; full_path: string | null; status: string } | null = null;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const { data } = await supabase
+          .from("projections")
+          .select("teaser_path, full_path, status")
+          .eq("user_id", userId)
+          .eq("scan_id", scanId)
+          .single();
+        proj = data;
+        if (!proj || proj.status === "done" || proj.status === "failed") break;
+        await new Promise((r) => setTimeout(r, 3000));
+      }
 
       if (proj?.status === "done") {
         if (proj.teaser_path) {
