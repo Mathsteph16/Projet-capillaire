@@ -18,22 +18,47 @@ export function ImageSlider({
 }: ImageSliderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState(50);
+  const posRef = useRef(50);
+  const velRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
   const dragging = useRef(false);
   const tracked = useRef(false);
+
+  const setPos = useCallback((p: number) => {
+    const clamped = Math.max(2, Math.min(98, p));
+    posRef.current = clamped;
+    setPosition(clamped);
+  }, []);
 
   const handleMove = useCallback((clientX: number) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = ((clientX - rect.left) / rect.width) * 100;
-    setPosition(Math.max(2, Math.min(98, x)));
+    velRef.current = x - posRef.current; // vitesse du geste (pourcent/frame)
+    setPos(x);
     if (!tracked.current) {
       tracked.current = true;
       trackEvent("slider_manipulated");
     }
-  }, []);
+  }, [setPos]);
+
+  // Inertie au relâchement : la poignée continue puis s'arrête (sensation de poids)
+  const glide = useCallback(() => {
+    velRef.current *= 0.92; // friction
+    const next = posRef.current + velRef.current;
+    if (next <= 2 || next >= 98) velRef.current = 0;
+    setPos(next);
+    if (Math.abs(velRef.current) > 0.06) {
+      rafRef.current = requestAnimationFrame(glide);
+    } else {
+      rafRef.current = null;
+    }
+  }, [setPos]);
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     dragging.current = true;
+    velRef.current = 0;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     handleMove(e.clientX);
   }, [handleMove]);
@@ -45,23 +70,28 @@ export function ImageSlider({
 
   const onPointerUp = useCallback(() => {
     dragging.current = false;
-  }, []);
+    const reduce = typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!reduce && Math.abs(velRef.current) > 0.4) {
+      rafRef.current = requestAnimationFrame(glide);
+    }
+  }, [glide]);
 
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "ArrowLeft") {
-      setPosition((p) => Math.max(2, p - 4));
+      setPos(posRef.current - 4);
       e.preventDefault();
     } else if (e.key === "ArrowRight") {
-      setPosition((p) => Math.min(98, p + 4));
+      setPos(posRef.current + 4);
       e.preventDefault();
     } else if (e.key === "Home") {
-      setPosition(2);
+      setPos(2);
       e.preventDefault();
     } else if (e.key === "End") {
-      setPosition(98);
+      setPos(98);
       e.preventDefault();
     }
-  }, []);
+  }, [setPos]);
 
   return (
     <div
@@ -82,7 +112,7 @@ export function ImageSlider({
       {/* After (right / objectif) */}
       <img src={afterSrc} alt={afterLabel} className="absolute inset-0 h-full w-full object-cover" draggable={false} />
 
-      {/* Before (left / actuellement) - clipped */}
+      {/* Before (left / actuellement), clipped */}
       <div
         className="absolute inset-0 overflow-hidden"
         style={{ width: `${position}%` }}

@@ -25,7 +25,7 @@ export async function sendEmail({ to, subject, html }: SendEmailInput) {
 }
 
 function wrap(content: string): string {
-  return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0E0F12;color:#F2F3F5;padding:32px 20px;max-width:480px;margin:0 auto;"><div style="background:#16181D;border-radius:16px;padding:24px;">${content}</div><p style="color:#6B7178;font-size:12px;text-align:center;margin-top:20px;">Scalpy — Estimation de bien-être, pas un avis médical.<br/><a href="${APP_URL}/confidentialite" style="color:#9AA0A8;">Confidentialité</a> · <a href="${APP_URL}/api/unsubscribe" style="color:#9AA0A8;">Se désinscrire</a></p></body></html>`;
+  return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0E0F12;color:#F2F3F5;padding:32px 20px;max-width:480px;margin:0 auto;"><div style="background:#16181D;border-radius:16px;padding:24px;">${content}</div><p style="color:#6B7178;font-size:12px;text-align:center;margin-top:20px;">Scalpy · Estimation de bien-être, pas un avis médical.<br/><a href="${APP_URL}/confidentialite" style="color:#9AA0A8;">Confidentialité</a> · <a href="${APP_URL}/api/unsubscribe" style="color:#9AA0A8;">Se désinscrire</a></p></body></html>`;
 }
 
 function cta(label: string, href: string): string {
@@ -61,7 +61,7 @@ export function emailProgramNudge(day: number): { subject: string; html: string 
   };
   return {
     subject: subjects[day] || `Jour ${day} de ton programme`,
-    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Ton programme avance</h1><p style="color:#9AA0A8;">Chaque petit geste compte. Sois régulier, les effets prennent du temps — et c'est la constance qui fait la différence.</p>${cta("Ouvrir mon plan", "/app")}`),
+    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Ton programme avance</h1><p style="color:#9AA0A8;">Chaque petit geste compte. Sois régulier, les effets prennent du temps, et c'est la constance qui fait la différence.</p>${cta("Ouvrir mon plan", "/app")}`),
   };
 }
 

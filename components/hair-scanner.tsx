@@ -7,6 +7,7 @@ import {
   FaceLandmarker,
   type ImageSegmenterResult,
 } from "@mediapipe/tasks-vision";
+import { haptics } from "@/lib/haptics";
 
 const WASM =
   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
@@ -71,6 +72,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
     const dataUrl = c.toDataURL("image/jpeg", 0.92);
 
     setFlash(true);
+    haptics.confirm();
     setTimeout(() => setFlash(false), 300);
 
     photosRef.current = [...photosRef.current, dataUrl];
