@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     "densité capillaire",
     "Norwood",
     "bien-être capillaire",
-    "analyse IA",
+    "analyse capillaire",
   ],
   alternates: { canonical: "/" },
   openGraph: {

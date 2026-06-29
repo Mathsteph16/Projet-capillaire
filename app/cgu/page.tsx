@@ -30,7 +30,7 @@ export default function CGU() {
           </h2>
           <p>
             Scalpy propose une estimation de bien-être capillaire basée sur
-            l'analyse visuelle par intelligence artificielle. Le service
+            l'analyse visuelle automatisée. Le service
             comprend : un scan capillaire (score de densité, stade Norwood,
             zones concernées), des recommandations de bien-être, et un suivi
             dans le temps.

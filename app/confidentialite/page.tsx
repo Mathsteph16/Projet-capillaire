@@ -148,8 +148,8 @@ export default function Confidentialite() {
               données, stockage, authentification) · Région UE (Frankfurt)
             </li>
             <li>
-              <span className="text-foreground">Anthropic</span> (analyse IA
-              des photos) · États-Unis
+              <span className="text-foreground">Anthropic</span> (analyse
+              automatisée des photos) · États-Unis
             </li>
             <li>
               <span className="text-foreground">fal.ai / Google</span>{" "}
