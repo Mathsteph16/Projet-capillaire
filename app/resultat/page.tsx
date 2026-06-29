@@ -275,14 +275,22 @@ export default function Resultat() {
 
         {/* ─── BILAN DÉTAILLÉ ─── */}
 
-        {/* Score */}
-        <Card className="flex flex-col items-center">
-          <p className="mb-2 text-sm font-medium text-text-muted">Score de densité</p>
-          <Gauge score={result.score} />
-          {result.message && (
-            <p className="mt-3 text-center text-sm text-accent">{result.message}</p>
-          )}
-        </Card>
+        {/* Score (arrondi + fourchette, jamais de fausse precision) */}
+        {(() => {
+          const shown = Math.round(result.score! / 5) * 5;
+          const lo = Math.max(0, shown - 5);
+          const hi = Math.min(100, shown + 5);
+          return (
+            <Card className="flex flex-col items-center">
+              <p className="mb-2 text-sm font-medium text-text-muted">Score de densité</p>
+              <Gauge score={shown} />
+              <p className="mt-2 font-data text-xs text-text-faint">Estimation, fourchette {lo} à {hi}</p>
+              {result.message && (
+                <p className="mt-3 text-center text-sm text-accent">{result.message}</p>
+              )}
+            </Card>
+          );
+        })()}
 
         {/* Norwood */}
         {result.norwood && (

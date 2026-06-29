@@ -30,6 +30,7 @@ const dataFont = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.scalpy-app.com"),
   title: "Scalpy · Sache où en sont tes cheveux, en une photo",
   description:
     "Ton score de densité, tes zones et ton stade en 30 secondes, plus l'aperçu de ton objectif. Gratuit, sans carte, depuis ton téléphone.",
@@ -53,6 +54,7 @@ export const metadata: Metadata = {
     icon: "/favicon.svg",
     apple: "/icon-192.png",
   },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Scalpy" },
   robots: { index: true, follow: true },
 };
 
@@ -71,6 +73,28 @@ export default function RootLayout({
   return (
     <html lang="fr" className={`${bodyFont.variable} ${displayFont.variable} ${dataFont.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans pb-16 sm:pb-0">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@graph": [
+                {
+                  "@type": "Organization",
+                  name: "Scalpy",
+                  url: "https://www.scalpy-app.com",
+                  logo: "https://www.scalpy-app.com/favicon.svg",
+                },
+                {
+                  "@type": "WebSite",
+                  name: "Scalpy",
+                  url: "https://www.scalpy-app.com",
+                  inLanguage: "fr-FR",
+                },
+              ],
+            }),
+          }}
+        />
         <header className="sticky top-0 z-50 border-b border-border bg-bg/95">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-3">
             <Link

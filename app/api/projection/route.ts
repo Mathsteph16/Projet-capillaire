@@ -11,6 +11,20 @@ const NEGATIVE_PROMPT = `different person, changed face, distorted face, cartoon
 
 const PROMPT_VERSION = "projection-v2-inpaint";
 
+// Garde anti-abus : max de generations par utilisateur sur une fenetre.
+// L'idempotence par scanId evite deja les doublons ; ceci borne le cout global.
+const RATE_MAX = 12;
+const RATE_WINDOW = 60 * 60 * 1000; // 1 h
+const rateMap = new Map<string, number[]>();
+function rateLimited(userId: string): boolean {
+  const now = Date.now();
+  const recent = (rateMap.get(userId) ?? []).filter((t) => now - t < RATE_WINDOW);
+  if (recent.length >= RATE_MAX) { rateMap.set(userId, recent); return true; }
+  recent.push(now);
+  rateMap.set(userId, recent);
+  return false;
+}
+
 async function storeResult(admin: ReturnType<typeof createAdminClient>, userId: string, scanId: string, buffer: Buffer) {
   await admin.storage.from("projections").upload(`${userId}/${scanId}/full.jpg`, buffer, { contentType: "image/jpeg", upsert: true });
   await admin.storage.from("projections").upload(`${userId}/${scanId}/teaser.jpg`, buffer, { contentType: "image/jpeg", upsert: true });
@@ -24,6 +38,10 @@ export async function POST(req: Request) {
 
     const { scanId, photoPath, beforeImage, maskImage } = await req.json();
     if (!scanId) return NextResponse.json({ error: "scanId requis" }, { status: 400 });
+
+    if (rateLimited(user.id)) {
+      return NextResponse.json({ ok: false, status: "rate_limited" }, { status: 429 });
+    }
 
     const admin = createAdminClient();
 

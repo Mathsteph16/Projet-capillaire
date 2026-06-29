@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
-import { Button, Card, Disclaimer } from "@/components/ui";
+import { Button, Card, Disclaimer, Checkbox } from "@/components/ui";
 import dynamic from "next/dynamic";
 
 const HairScanner = dynamic(() => import("@/components/hair-scanner"), { ssr: false });
@@ -40,6 +40,7 @@ export default function Scan() {
   const [analysisStep, setAnalysisStep] = useState(0);
   const [analysisPercent, setAnalysisPercent] = useState(0);
   const [error, setError] = useState("");
+  const [consent, setConsent] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const router = useRouter();
   const analysisDone = useRef(false);
@@ -251,9 +252,19 @@ export default function Scan() {
             </ol>
           </div>
 
+          {/* Consentement explicite avant la camera (donnees de sante, RGPD) */}
+          <div className="rounded-[var(--radius-md)] border border-border bg-surface p-4">
+            <Checkbox
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              label="Je consens à ce que Scalpy prenne et analyse mes photos pour mon bilan capillaire, y compris les informations de bien-être qui en découlent, et à leur traitement par ses services d'analyse partenaires en Europe et aux États-Unis. Mes photos restent privées, ne servent jamais à entraîner ces services, et je peux les supprimer quand je veux."
+            />
+          </div>
+
           <Button
             variant="primary"
             size="lg"
+            disabled={!consent}
             onClick={() => {
               trackEvent("camera_authorized");
               setStep("capture");

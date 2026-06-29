@@ -26,8 +26,24 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
 
   const others = ARTICLES.filter((a) => a.slug !== slug).slice(0, 2);
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: article.title,
+    description: article.description,
+    inLanguage: "fr-FR",
+    author: { "@type": "Organization", name: "Scalpy" },
+    publisher: {
+      "@type": "Organization",
+      name: "Scalpy",
+      logo: { "@type": "ImageObject", url: "https://www.scalpy-app.com/favicon.svg" },
+    },
+    mainEntityOfPage: { "@type": "WebPage", "@id": `https://www.scalpy-app.com/blog/${slug}` },
+  };
+
   return (
     <main className="flex flex-1 flex-col">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <article className="mx-auto w-full max-w-2xl px-5 py-14 sm:py-20">
         <Link href="/blog" className="inline-flex items-center gap-1.5 text-sm text-text-muted transition-colors hover:text-accent">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
