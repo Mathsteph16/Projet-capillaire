@@ -45,7 +45,7 @@ function cta(label: string, href: string): string {
 export function emailWelcome(): { subject: string; html: string } {
   return {
     subject: "Bienvenue sur Scalpy. Ton bilan t'attend.",
-    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Bienvenue sur Scalpy</h1><p style="color:#9AA0A8;">Tu viens de faire le premier pas. Ton bilan capillaire t'attend : un score de densité, tes zones fragiles, et un objectif visuel concret.</p><p style="color:#9AA0A8;">Tes photos restent privées, hébergées en Europe.</p>${cta("Faire mon scan", "/scan")}`),
+    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Bienvenue sur Scalpy</h1><p style="color:#9AA0A8;">Tu viens de faire le premier pas. En une photo et 30 secondes : ton score, tes zones, ton stade et l'aperçu de ton objectif. Gratuit, sans carte.</p><p style="color:#9AA0A8;">Tes photos restent privées, hébergées en Europe.</p>${cta("Faire mon scan gratuit", "/scan")}`),
   };
 }
 
@@ -58,8 +58,8 @@ export function emailScanAbandoned(): { subject: string; html: string } {
 
 export function emailPaywallAbandoned(objectif: string): { subject: string; html: string } {
   return {
-    subject: `Ton plan pour ${objectif} est prêt à être débloqué.`,
-    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Ton plan t'attend</h1><p style="color:#9AA0A8;">Ta projection complète, ton protocole 30 jours et ton suivi mensuel sont prêts. Débloque ton espace pour avancer.</p>${cta("Voir les offres", "/plus")}`),
+    subject: `Ton plan pour ${objectif} t'attend.`,
+    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Tu sais où tu vas. Voici comment y arriver.</h1><p style="color:#9AA0A8;">Ton objectif complet, ton plan sur 90 jours et ton suivi mensuel sont prêts.</p><p style="color:#9AA0A8;">Satisfait ou remboursé, sans condition : tu essaies, et si ce n'est pas pour toi, on te rembourse.</p>${cta("Démarrer mon plan", "/plus")}`),
   };
 }
 
