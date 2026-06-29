@@ -752,8 +752,9 @@ export default function HairScanner({ onAllCaptured }: Props) {
           </div>
         )}
 
-        {/* Bandeau de consigne : toujours une indication claire a l'ecran */}
-        <div className="pointer-events-none absolute bottom-4 left-0 right-0 flex flex-col items-center gap-2 px-4 text-center">
+        {/* Bandeau de consigne : toujours une indication claire a l'ecran. aria-live
+            pour que les lecteurs d'ecran annoncent le guidage en temps reel. */}
+        <div role="status" aria-live="polite" className="pointer-events-none absolute bottom-4 left-0 right-0 flex flex-col items-center gap-2 px-4 text-center">
           {status === "loading" && (
             <div className="flex flex-col items-center gap-2">
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
