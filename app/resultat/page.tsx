@@ -78,6 +78,8 @@ export default function Resultat() {
   const [loading, setLoading] = useState(true);
   const [projectionLoading, setProjectionLoading] = useState(true);
   const [isSubscriber, setIsSubscriber] = useState(false);
+  const [projFailed, setProjFailed] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     trackEvent("result_viewed");
@@ -113,6 +115,8 @@ export default function Resultat() {
         if (!proj || proj.status === "done" || proj.status === "failed") break;
         await new Promise((r) => setTimeout(r, 3000));
       }
+
+      setProjFailed(proj?.status === "failed");
 
       if (proj?.status === "done") {
         if (proj.teaser_path) {
@@ -250,9 +254,37 @@ export default function Resultat() {
                   <p className="text-sm text-text-faint">Génération de ta projection...</p>
                 </div>
               ) : (
-                <p className="text-sm text-text-faint px-8 text-center">
-                  Projection non disponible pour le moment.
-                </p>
+                <div className="flex flex-col items-center gap-3 px-8 text-center">
+                  <p className="text-sm text-text-faint">
+                    {projFailed ? "La génération a échoué cette fois." : "Projection non disponible pour le moment."}
+                  </p>
+                  {(projFailed || regenerating) && (
+                    <button
+                      onClick={async () => {
+                        if (regenerating) return;
+                        const portrait = sessionStorage.getItem("portraitPhoto");
+                        const mask = sessionStorage.getItem("portraitMask") || undefined;
+                        const photoPath = sessionStorage.getItem("scanPhotoPath") || undefined;
+                        if (!result?.scanId || !portrait) return;
+                        setRegenerating(true);
+                        try {
+                          await fetch("/api/projection", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ scanId: result.scanId, photoPath, beforeImage: portrait, maskImage: mask }),
+                          });
+                          window.location.reload();
+                        } catch {
+                          setRegenerating(false);
+                        }
+                      }}
+                      disabled={regenerating}
+                      className="rounded-[var(--radius-md)] bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-60"
+                    >
+                      {regenerating ? "Régénération..." : "Régénérer mon aperçu"}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
