@@ -1,24 +1,29 @@
 import crypto from "crypto";
 import type { BillingProvider, CheckoutInput, Plan, WebhookEvent } from "./index";
+import { getSecret } from "@/lib/runtime-secrets";
 
-const PLAN_VARIANT_IDS: Record<Plan, string> = {
-  plus_monthly: process.env.LS_VARIANT_PLUS_MONTHLY ?? "",
-  plus_annual: process.env.LS_VARIANT_PLUS_ANNUAL ?? "",
-  pro: process.env.LS_VARIANT_PRO ?? "",
+// La config LemonSqueezy est lue via getSecret : env Railway OU base (clés posées
+// hors Railway). -> activer le paiement = juste poser les clés dans la base, zéro
+// changement de code. Noms des variantes par plan :
+const VARIANT_SECRET: Record<Plan, string> = {
+  plus_monthly: "LS_VARIANT_PLUS_MONTHLY",
+  plus_annual: "LS_VARIANT_PLUS_ANNUAL",
+  pro: "LS_VARIANT_PRO",
 };
 
 export class LemonSqueezyProvider implements BillingProvider {
-  private apiKey = process.env.LEMONSQUEEZY_API_KEY ?? "";
-  private storeId = process.env.LEMONSQUEEZY_STORE_ID ?? "";
-
   async createCheckout(input: CheckoutInput): Promise<{ url: string }> {
-    const variantId = PLAN_VARIANT_IDS[input.plan];
-    if (!variantId) throw new Error(`No variant for plan ${input.plan}`);
+    const apiKey = await getSecret("LEMONSQUEEZY_API_KEY");
+    const storeId = await getSecret("LEMONSQUEEZY_STORE_ID");
+    const variantId = await getSecret(VARIANT_SECRET[input.plan]);
+    if (!apiKey || !storeId || !variantId) {
+      throw new Error(`LemonSqueezy non configuré (clé/store/variant manquant pour ${input.plan})`);
+    }
 
     const res = await fetch("https://api.lemonsqueezy.com/v1/checkouts", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/vnd.api+json",
         Accept: "application/vnd.api+json",
       },
@@ -32,7 +37,7 @@ export class LemonSqueezyProvider implements BillingProvider {
             },
           },
           relationships: {
-            store: { data: { type: "stores", id: this.storeId } },
+            store: { data: { type: "stores", id: storeId } },
             variant: { data: { type: "variants", id: variantId } },
           },
         },
@@ -49,11 +54,12 @@ export class LemonSqueezyProvider implements BillingProvider {
   }
 
   async cancelSubscription(subscriptionId: string): Promise<void> {
-    if (!this.apiKey || !subscriptionId) return;
+    const apiKey = await getSecret("LEMONSQUEEZY_API_KEY");
+    if (!apiKey || !subscriptionId) return;
     const res = await fetch(`https://api.lemonsqueezy.com/v1/subscriptions/${subscriptionId}`, {
       method: "DELETE",
       headers: {
-        Authorization: `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         Accept: "application/vnd.api+json",
       },
     });
@@ -63,7 +69,7 @@ export class LemonSqueezyProvider implements BillingProvider {
   }
 
   async verifyWebhook(req: Request): Promise<WebhookEvent | null> {
-    const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? "";
+    const secret = (await getSecret("LEMONSQUEEZY_WEBHOOK_SECRET")) ?? "";
     // Sans secret configuré, on refuse tout : pas de webhook accepté en aveugle.
     if (!secret) {
       console.error("[LemonSqueezy] LEMONSQUEEZY_WEBHOOK_SECRET non configuré.");
@@ -100,8 +106,10 @@ export class LemonSqueezyProvider implements BillingProvider {
     };
     const customData = payload.meta?.custom_data ?? {};
 
+    // Mapping variante -> plan, via la config (env ou base).
     const planMap: Record<string, Plan> = {};
-    for (const [plan, vid] of Object.entries(PLAN_VARIANT_IDS)) {
+    for (const [plan, secretName] of Object.entries(VARIANT_SECRET)) {
+      const vid = await getSecret(secretName);
       if (vid) planMap[vid] = plan as Plan;
     }
 
