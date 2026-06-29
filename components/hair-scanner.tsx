@@ -133,7 +133,7 @@ function assessQuality(src: HTMLCanvasElement): { ok: boolean; reason: string } 
       sum += L; sum2 += L * L; n++;
     }
   const blurVar = sum2 / n - (sum / n) * (sum / n);
-  if (brightness < 45) return { ok: false, reason: "Trop sombre, rapproche-toi d'une lumiere" };
+  if (brightness < 70) return { ok: false, reason: "Trop sombre, augmente la lumière avant de prendre la photo" };
   if (brightness > 215) return { ok: false, reason: "Trop de lumiere, eloigne-toi de la source" };
   if (blurVar < 70) return { ok: false, reason: "Image floue, tiens le telephone bien stable" };
   return { ok: true, reason: "" };
@@ -498,8 +498,8 @@ export default function HairScanner({ onAllCaptured }: Props) {
         try {
           const b = frameBrightness(video, lightCanvasRef.current);
           lightMsgRef.current =
-            b < 45 ? "Trop sombre · mets-toi face à une lumière"
-            : b > 215 ? "Trop de lumière · éloigne-toi de la source"
+            b < 75 ? "Trop sombre, augmente la lumière (mets-toi face à une fenêtre)"
+            : b > 215 ? "Trop de lumière, éloigne-toi de la source"
             : "";
         } catch { lightMsgRef.current = ""; }
       }

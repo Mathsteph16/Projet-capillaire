@@ -95,11 +95,12 @@ export default function Scan() {
 
     async function runAnalysis() {
       try {
+        trackEvent("scan_proc_start");
         const photoToSend = photos[0];
-        if (!photoToSend) return;
+        if (!photoToSend) { trackEvent("scan_no_photo"); return; }
 
-        // Compresse puis convertit en base64 -> envoyé en JSON (le multipart/FormData
-        // casse sur ce déploiement Next 16, "Failed to parse body as FormData").
+        // 1 SEULE image (la face) envoyée à l'analyse : 2x plus rapide/léger qu'avec
+        // 2 images. En base64/JSON (le multipart/FormData casse sur ce déploiement).
         const toDataUrl = (b: Blob) => new Promise<string>((resolve, reject) => {
           const r = new FileReader();
           r.onload = () => resolve(String(r.result || ""));
@@ -109,16 +110,7 @@ export default function Scan() {
         const rawBlob = await fetch(photoToSend).then(r => r.blob());
         const file = await compressImage(new File([rawBlob], "scan.jpg", { type: "image/jpeg" }));
         const photoB64 = await toDataUrl(file);
-
-        // 2e angle : le dessus du crâne (clé pour le vertex/la couronne).
-        let topB64: string | null = null;
-        if (photos[1] && photos[1] !== photos[0]) {
-          try {
-            const tBlob = await fetch(photos[1]).then(r => r.blob());
-            const tFile = await compressImage(new File([tBlob], "scan-top.jpg", { type: "image/jpeg" }));
-            topB64 = await toDataUrl(tFile);
-          } catch { topB64 = null; }
-        }
+        trackEvent("scan_img_ready", { kb: Math.round(photoB64.length / 1024) });
 
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
@@ -131,6 +123,7 @@ export default function Scan() {
 
         // Timeout dur : l'analyse ne reste JAMAIS coincee. Au-dela de 45s on
         // affiche une erreur claire au lieu de figer la barre.
+        trackEvent("scan_api_sent");
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 45_000);
         let res: Response;
@@ -138,10 +131,11 @@ export default function Scan() {
           res = await fetch("/api/scan", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ photo: photoB64, photoTop: topB64 }),
+            body: JSON.stringify({ photo: photoB64 }),
             signal: controller.signal,
           });
         } catch {
+          trackEvent("scan_api_net_error");
           clearTimeout(timeoutId);
           clearInterval(stepInterval);
           clearInterval(percentInterval);
@@ -151,9 +145,11 @@ export default function Scan() {
           return;
         }
         clearTimeout(timeoutId);
+        trackEvent("scan_api_got", { status: res.status });
         if (!res.ok && res.status !== 200) {
           clearInterval(stepInterval);
           clearInterval(percentInterval);
+          trackEvent("scan_api_http_error", { status: res.status });
           // 429 = trop de scans ; sinon erreur générique, jamais d'écran figé.
           setError(res.status === 429
             ? "Trop de scans en peu de temps. Réessaie dans une minute."
@@ -162,17 +158,19 @@ export default function Scan() {
           analysisDone.current = false;
           return;
         }
-        const data = await res.json();
+        const data = await res.json().catch(() => ({ error: "json" }));
 
         if (data.error || data.usable === false) {
           clearInterval(stepInterval);
           clearInterval(percentInterval);
+          trackEvent("scan_unusable", { reason: data.error ? "error" : "unusable" });
           setError(data.message || data.error || "Photo non exploitable. Réessaie avec plus de lumière.");
           setStep("manque");
           analysisDone.current = false;
           return;
         }
 
+        trackEvent("scan_usable_ok", { score: data.score });
         setResult(data);
         setAnalysisStep(ANALYSIS_STEPS.length - 1);
         progressTarget = 100; // declenche le remplissage fluide jusqu'a 100% pile
@@ -180,7 +178,7 @@ export default function Scan() {
         // Laisse la barre finir son remplissage avant de devoiler le bilan.
         await new Promise(r => setTimeout(r, 1200));
 
-        trackEvent("scan_completed", { score: data.score });
+        trackEvent("scan_reached_bilan", { score: data.score });
         sessionStorage.setItem("scanResult", JSON.stringify(data));
         if (data.photoPath) sessionStorage.setItem("scanPhotoPath", data.photoPath);
 
