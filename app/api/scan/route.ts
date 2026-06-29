@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSecret } from "@/lib/runtime-secrets";
 
 const rateMap = new Map<string, number[]>();
 const RATE_LIMIT = 5;
@@ -149,7 +150,7 @@ export async function DELETE(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = await getSecret("ANTHROPIC_API_KEY");
   if (!apiKey) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY non configurée" }, { status: 500 });
   }

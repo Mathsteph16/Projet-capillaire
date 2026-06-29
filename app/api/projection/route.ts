@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { trackEventServer } from "@/lib/track-server";
+import { getSecret } from "@/lib/runtime-secrets";
 // Prompts centralisés et documentés (voir lib/projection-prompt.ts + docs/PROMPT-PROJECTION.md).
 import { AFTER_PROMPT, NEGATIVE_PROMPT, PROMPT_VERSION } from "@/lib/projection-prompt";
 
@@ -97,7 +98,8 @@ export async function POST(req: Request) {
       } catch { /* non bloquant */ }
     }
 
-    const falKey = process.env.FAL_KEY;
+    const falKey = await getSecret("FAL_KEY");
+    const openaiKey = await getSecret("OPENAI_API_KEY");
     let success = false;
 
     // ---- 1) Inpainting au masque (FLUX.1 Fill) : la voie propre ----
@@ -172,7 +174,7 @@ export async function POST(req: Request) {
     }
 
     // ---- Repli final : GPT Image Edit ----
-    if (!success && process.env.OPENAI_API_KEY) {
+    if (!success && openaiKey) {
       try {
         let b64Src = "";
         if (beforeImage && typeof beforeImage === "string") {
@@ -184,7 +186,7 @@ export async function POST(req: Request) {
         if (b64Src) {
           const openaiRes = await fetchTimeout("https://api.openai.com/v1/images/edits", {
             method: "POST",
-            headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+            headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({ model: "gpt-image-1", prompt: AFTER_PROMPT, image: b64Src }),
           });
           if (openaiRes.ok) {
