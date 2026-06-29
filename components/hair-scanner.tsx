@@ -8,6 +8,7 @@ import {
   type ImageSegmenterResult,
 } from "@mediapipe/tasks-vision";
 import { haptics } from "@/lib/haptics";
+import { compressImage } from "@/lib/compress-image";
 
 const WASM =
   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
@@ -58,10 +59,10 @@ function buildInpaintMask(hairMask: Uint8Array, width: number, height: number): 
     out.data[i] = on; out.data[i + 1] = on; out.data[i + 2] = on; out.data[i + 3] = 255;
   }
   ctx.putImageData(out, 0, 0);
-  // Feathering proportionnel : un bord doux (gradient) au lieu d'un bord net
-  // => FLUX fond les nouveaux cheveux sans bordure visible (cle du realisme).
-  const feather = Math.max(3, Math.round(height * 0.008));
-  ctx.filter = `blur(${feather}px)`;
+  // Feathering LEGER (2px) : un bord juste assez doux pour fondre les cheveux,
+  // sans creer une large zone grise que FLUX interpreterait comme "a repeindre"
+  // (ce qui ferait deborder l'inpainting sur le front/visage). Best practice FLUX.
+  ctx.filter = "blur(2px)";
   ctx.drawImage(canvas, 0, 0);
   ctx.filter = "none";
   return canvas.toDataURL("image/png");
@@ -230,7 +231,10 @@ export default function HairScanner({ onAllCaptured }: Props) {
   // Elle sert d'avant et de base d'analyse ; pas de masque (l'apres bascule alors
   // sur l'edition pleine cote serveur). Personne ne reste bloque.
   const handleImport = useCallback(
-    (file: File) => {
+    async (file: File) => {
+      // Compresse la photo importee (une galerie peut faire 10+ Mo) avant de
+      // l'envoyer dans le pipeline -> upload + IA plus rapides, pas de surcout.
+      const compressed = await compressImage(file).catch(() => file);
       const fr = new FileReader();
       fr.onload = () => {
         const url = String(fr.result || "");
@@ -240,7 +244,7 @@ export default function HairScanner({ onAllCaptured }: Props) {
         stream?.getTracks().forEach((t) => t.stop());
         onAllCaptured([url, url, url], ["", "", ""]);
       };
-      fr.readAsDataURL(file);
+      fr.readAsDataURL(compressed);
     },
     [onAllCaptured]
   );

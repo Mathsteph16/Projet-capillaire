@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Création de compte SANS confirmation d'email (zéro friction) : on crée
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     }
 
     const admin = createAdminClient();
-    const { error } = await admin.auth.admin.createUser({
+    const { data, error } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
@@ -30,6 +31,21 @@ export async function POST(req: Request) {
         { error: already ? "Cet email est déjà utilisé." : error.message },
         { status: already ? 409 : 400 }
       );
+    }
+
+    // Rattache les réponses du questionnaire (anonymes, liées au cookie de session)
+    // au nouveau compte. Sans ça, la perso (objectif) est perdue pour les
+    // inscriptions par email (seul Google le faisait via auth/callback).
+    const userId = data.user?.id;
+    if (userId) {
+      const sessionId = (await cookies()).get("scalpy_sid")?.value;
+      if (sessionId) {
+        await admin
+          .from("onboarding_responses")
+          .update({ user_id: userId })
+          .eq("session_id", sessionId)
+          .is("user_id", null);
+      }
     }
 
     return NextResponse.json({ ok: true });

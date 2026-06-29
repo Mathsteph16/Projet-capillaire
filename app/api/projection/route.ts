@@ -33,7 +33,11 @@ async function fetchTimeout(url: string, init: RequestInit, ms = 45_000): Promis
 }
 
 async function storeResult(admin: ReturnType<typeof createAdminClient>, userId: string, scanId: string, buffer: Buffer) {
-  await admin.storage.from("projections").upload(`${userId}/${scanId}/full.jpg`, buffer, { contentType: "image/jpeg", upsert: true });
+  // La sortie FLUX est un PNG : on l'encode en vrai JPEG haute qualite (abonne =
+  // image nette) -> bon etiquetage + fichier plus leger a servir.
+  let full = buffer;
+  try { full = await sharp(buffer).jpeg({ quality: 92, progressive: true }).toBuffer(); } catch { full = buffer; }
+  await admin.storage.from("projections").upload(`${userId}/${scanId}/full.jpg`, full, { contentType: "image/jpeg", upsert: true });
   // Teaser VOLONTAIREMENT dégradé (réduit + fortement flouté) : même récupéré
   // en direct via son URL, il ne révèle pas le résultat net. La version nette
   // (full.jpg) n'est servie qu'aux abonnés (cf. page résultat).
