@@ -35,7 +35,7 @@ export default function MobileNav() {
         ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-surface sm:hidden">
+    <nav aria-label="Navigation principale" className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-surface sm:hidden">
       <div className="flex items-center justify-around py-2">
         {tabs.map((tab) => {
           const active = pathname === tab.href;
@@ -43,11 +43,13 @@ export default function MobileNav() {
             <Link
               key={tab.href}
               href={tab.href}
+              aria-current={active ? "page" : undefined}
               className={`flex flex-col items-center gap-0.5 px-3 py-1 transition-colors ${
                 active ? "text-accent" : "text-text-muted"
               }`}
             >
               <svg
+                aria-hidden="true"
                 viewBox="0 0 24 24"
                 className="h-5 w-5"
                 fill="none"

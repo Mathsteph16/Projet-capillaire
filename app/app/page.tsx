@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
-import { Button, Card, Gauge, ProgressBar, Badge, Disclaimer, ScoreMark, TrendChart } from "@/components/ui";
+import { Button, Card, ProgressBar, Badge, Disclaimer, ScoreMark, TrendChart } from "@/components/ui";
 
 interface ScanHistory {
   id: string;
