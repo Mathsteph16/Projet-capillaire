@@ -51,7 +51,7 @@ export default function Nav() {
       ) : (
         <Link
           href="/auth"
-          className="ml-1 rounded-[12px] bg-accent px-4 py-1.5 font-medium text-[#06231A] transition-colors hover:bg-accent-hover sm:ml-2"
+          className="ml-1 rounded-[var(--radius-md)] bg-accent px-4 py-1.5 font-medium text-accent-foreground transition-colors hover:bg-accent-hover sm:ml-2"
         >
           Connexion
         </Link>

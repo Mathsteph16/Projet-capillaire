@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
-import { Button, Card, Gauge, ProgressBar, Badge, Disclaimer } from "@/components/ui";
+import { Button, Card, Gauge, ProgressBar, Badge, Disclaimer, ScoreMark } from "@/components/ui";
 
 interface ScanHistory {
   id: string;
@@ -196,8 +196,9 @@ export default function AppPage() {
 
   if (subscribed === null) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
+      <main className="flex flex-1 flex-col items-center justify-center gap-4">
+        <ScoreMark size={44} spin value={0.7} />
+        <p className="font-data text-xs uppercase tracking-[0.2em] text-text-faint">Chargement</p>
       </main>
     );
   }
@@ -330,7 +331,7 @@ export default function AppPage() {
                     done ? "border-accent bg-accent" : "border-border"
                   }`}>
                     {done && (
-                      <svg className="h-3 w-3 text-[#06231A]" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                      <svg className="h-3 w-3 text-accent-foreground" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                       </svg>
                     )}
@@ -359,7 +360,7 @@ export default function AppPage() {
                 <div key={scan.id} className="flex flex-1 flex-col items-center gap-1">
                   <span className="font-data text-xs text-text-faint">{scan.score}</span>
                   <div
-                    className="w-full rounded-t-[8px] bg-accent transition-all"
+                    className="w-full rounded-t-[var(--radius-sm)] bg-gradient-to-t from-accent-pressed to-accent transition-all duration-[var(--dur-slow)] ease-[var(--ease-out)]"
                     style={{ height: `${(scan.score / 100) * 100}%` }}
                   />
                   <span className="text-[10px] text-text-faint">

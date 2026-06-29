@@ -44,7 +44,7 @@ function ScanAnimation({ photoUrl, steps, currentStep, className = "" }: ScanAni
                   : "border-2 border-border"
             }`}>
               {i < currentStep && (
-                <svg className="h-3.5 w-3.5 text-[#06231A]" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                <svg className="h-3.5 w-3.5 text-accent-foreground" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                 </svg>
               )}

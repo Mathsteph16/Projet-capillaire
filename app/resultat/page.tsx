@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
-import { Gauge, Card, Button, Disclaimer, Badge, ImageSlider } from "@/components/ui";
+import { Gauge, Card, Button, Disclaimer, Badge, ImageSlider, ScoreMark } from "@/components/ui";
 
 interface ScanResult {
   usable: boolean;
@@ -182,8 +182,9 @@ export default function Resultat() {
 
   if (loading) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center px-4">
-        <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+      <main className="flex flex-1 flex-col items-center justify-center gap-4 px-4">
+        <ScoreMark size={44} spin value={0.7} />
+        <p className="font-data text-xs uppercase tracking-[0.2em] text-text-faint">Mesure</p>
       </main>
     );
   }
@@ -192,7 +193,7 @@ export default function Resultat() {
     return (
       <main className="flex flex-1 flex-col items-center justify-center px-5">
         <p className="text-text-muted">{result?.message || "Aucun résultat disponible."}</p>
-        <Link href="/scan" className="mt-4 inline-block rounded-[12px] bg-accent px-6 py-3 text-sm font-semibold text-[#06231A]">
+        <Link href="/scan" className="mt-4 inline-block rounded-[var(--radius-md)] bg-accent px-6 py-3 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover">
           Faire un scan
         </Link>
       </main>
@@ -231,7 +232,7 @@ export default function Resultat() {
             <div className="relative w-full overflow-hidden rounded-[16px] bg-surface-2 aspect-[3/4] flex items-center justify-center">
               {projectionLoading ? (
                 <div className="flex flex-col items-center gap-3">
-                  <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+                  <ScoreMark size={36} spin value={0.66} />
                   <p className="text-sm text-text-faint">Génération de ta projection...</p>
                 </div>
               ) : (
@@ -301,8 +302,8 @@ export default function Resultat() {
             </p>
             <div className="mt-4 flex gap-1">
               {["I", "II", "III", "IV", "V", "VI", "VII"].map((s) => (
-                <div key={s} className={`flex h-8 flex-1 items-center justify-center rounded-[8px] font-data text-xs font-medium transition-all ${
-                  s === result.norwood ? "bg-accent text-[#06231A]" : "bg-border/50 text-text-faint"
+                <div key={s} className={`flex h-8 flex-1 items-center justify-center rounded-[var(--radius-sm)] font-data text-xs font-medium transition-all ${
+                  s === result.norwood ? "bg-accent text-accent-foreground shadow-[var(--shadow-accent-glow)]" : "bg-surface-2 text-text-faint"
                 }`}>
                   {s}
                 </div>

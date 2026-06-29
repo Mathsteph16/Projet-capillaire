@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Button, Card } from "@/components/ui";
+import { Button, Card, ScoreMark } from "@/components/ui";
 
 export default function Success() {
   const [status, setStatus] = useState<"checking" | "active" | "pending">("checking");
@@ -47,7 +47,7 @@ export default function Success() {
       <Card className="w-full max-w-md text-center space-y-4">
         {status === "checking" && (
           <>
-            <div className="mx-auto h-2 w-2 animate-pulse rounded-full bg-accent" />
+            <div className="flex justify-center"><ScoreMark size={40} spin value={0.7} /></div>
             <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">Activation en cours</h1>
             <p className="text-sm text-text-muted">
               On prépare ton espace. Ça ne prend que quelques secondes.

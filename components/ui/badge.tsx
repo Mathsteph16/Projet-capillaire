@@ -9,9 +9,9 @@ interface BadgeProps {
 }
 
 const variantClasses: Record<BadgeVariant, string> = {
-  accent: "bg-accent-soft text-accent",
-  signal: "bg-signal/12 text-signal",
-  danger: "bg-danger/12 text-danger",
+  accent: "bg-accent-soft text-accent ring-1 ring-inset ring-accent/20",
+  signal: "bg-signal/12 text-signal ring-1 ring-inset ring-signal/20",
+  danger: "bg-danger/12 text-danger ring-1 ring-inset ring-danger/20",
 };
 
 function Badge({ children, variant = "accent", className = "" }: BadgeProps) {

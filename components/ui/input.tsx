@@ -19,11 +19,12 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           id={inputId}
           className={`
-            w-full rounded-[12px] border bg-surface px-4 py-3
+            w-full rounded-[var(--radius-md)] border bg-surface px-4 py-3
             text-text placeholder:text-text-faint
             focus:border-accent focus:outline-none
-            transition-colors duration-150
-            ${error ? "border-danger" : "border-border"}
+            focus:ring-2 focus:ring-[var(--accent-ring)] focus:ring-offset-0
+            transition-[border-color,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]
+            ${error ? "border-danger focus:ring-[oklch(0.637_0.193_21/0.35)]" : "border-border"}
             ${className}
           `}
           {...props}

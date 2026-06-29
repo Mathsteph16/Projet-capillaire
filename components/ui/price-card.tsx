@@ -33,10 +33,11 @@ function PriceCard({
   return (
     <div
       className={`
-        relative flex flex-col rounded-[16px] p-5
+        relative flex flex-col rounded-[var(--radius-lg)] p-5
+        transition-all duration-[var(--dur)] ease-[var(--ease-out)]
         ${featured
-          ? "border-2 border-accent bg-surface shadow-[var(--shadow-accent-glow)]"
-          : "border border-border bg-surface"
+          ? "border border-accent bg-surface shadow-[var(--shadow-accent-glow)]"
+          : "border border-border bg-surface shadow-card hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md"
         }
       `}
     >

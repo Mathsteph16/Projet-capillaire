@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import AuthForm from "@/components/auth-form";
+import { ScoreMark } from "@/components/ui";
 
 function AuthInner() {
   const searchParams = useSearchParams();
@@ -30,7 +31,7 @@ export default function Auth() {
     <Suspense
       fallback={
         <main className="flex flex-1 flex-col items-center justify-center px-4">
-          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+          <ScoreMark size={40} spin value={0.7} />
         </main>
       }
     >

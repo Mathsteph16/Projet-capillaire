@@ -75,12 +75,12 @@ export default function Plus() {
         </div>
 
         {/* Sélecteur Mensuel / Annuel */}
-        <div className="flex rounded-[12px] border border-border bg-surface p-1">
+        <div className="flex rounded-[var(--radius-md)] border border-border bg-surface p-1">
           <button
             onClick={() => setPlan("monthly")}
-            className={`flex-1 rounded-[10px] py-2.5 text-sm font-medium transition-all ${
+            className={`flex-1 rounded-[var(--radius-sm)] py-2.5 text-sm font-medium transition-all duration-[var(--dur)] ease-[var(--ease-out)] ${
               plan === "monthly"
-                ? "bg-surface-2 text-text shadow-sm"
+                ? "bg-surface-elevated text-text shadow-card"
                 : "text-text-muted hover:text-text"
             }`}
           >
@@ -88,21 +88,21 @@ export default function Plus() {
           </button>
           <button
             onClick={() => setPlan("annual")}
-            className={`flex-1 rounded-[10px] py-2.5 text-sm font-medium transition-all ${
+            className={`flex-1 rounded-[var(--radius-sm)] py-2.5 text-sm font-medium transition-all duration-[var(--dur)] ease-[var(--ease-out)] ${
               plan === "annual"
-                ? "bg-surface-2 text-text shadow-sm"
+                ? "bg-surface-elevated text-text shadow-card"
                 : "text-text-muted hover:text-text"
             }`}
           >
             <span>Annuel</span>
-            <span className="ml-1.5 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">
+            <span className="ml-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent ring-1 ring-inset ring-accent/20">
               ECO
             </span>
           </button>
         </div>
 
         {/* Prix */}
-        <Card className={`text-center ${plan === "annual" ? "border-accent border-2 shadow-[var(--shadow-accent-glow)]" : ""}`}>
+        <Card className={`text-center transition-all duration-[var(--dur)] ease-[var(--ease-out)] ${plan === "annual" ? "border-accent shadow-[var(--shadow-accent-glow)]" : ""}`}>
           {plan === "annual" ? (
             <>
               <p className="font-data text-[40px] font-medium leading-none text-text">79 €</p>

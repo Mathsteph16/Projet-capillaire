@@ -47,13 +47,37 @@ export function ImageSlider({
     dragging.current = false;
   }, []);
 
+  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "ArrowLeft") {
+      setPosition((p) => Math.max(2, p - 4));
+      e.preventDefault();
+    } else if (e.key === "ArrowRight") {
+      setPosition((p) => Math.min(98, p + 4));
+      e.preventDefault();
+    } else if (e.key === "Home") {
+      setPosition(2);
+      e.preventDefault();
+    } else if (e.key === "End") {
+      setPosition(98);
+      e.preventDefault();
+    }
+  }, []);
+
   return (
     <div
       ref={containerRef}
-      className="relative w-full select-none overflow-hidden rounded-[16px] touch-none aspect-[3/4]"
+      role="slider"
+      tabIndex={0}
+      aria-label="Comparateur avant/après, simulation d'objectif visuel"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(position)}
+      aria-valuetext={`Curseur à ${Math.round(position)} pour cent`}
+      className="relative w-full cursor-ew-resize select-none overflow-hidden rounded-[var(--radius-lg)] border border-border touch-none aspect-[3/4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onKeyDown={onKeyDown}
     >
       {/* After (right / objectif) */}
       <img src={afterSrc} alt={afterLabel} className="absolute inset-0 h-full w-full object-cover" draggable={false} />
@@ -73,10 +97,10 @@ export function ImageSlider({
 
       {/* Divider line + handle */}
       <div
-        className="absolute top-0 bottom-0 w-0.5 bg-white/80"
+        className="absolute top-0 bottom-0 w-px bg-white/90 shadow-[0_0_12px_oklch(0_0_0/0.5)]"
         style={{ left: `${position}%` }}
       >
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-ink/70 backdrop-blur-sm">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full border border-white/70 bg-ink/60 shadow-md backdrop-blur-md ring-1 ring-accent/30">
           <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l-3 3 3 3m8-6l3 3-3 3" />
           </svg>
@@ -84,10 +108,10 @@ export function ImageSlider({
       </div>
 
       {/* Top badges */}
-      <span className="absolute top-3 left-3 rounded-[8px] bg-ink/70 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
+      <span className="absolute top-3 left-3 rounded-[var(--radius-sm)] bg-ink/65 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white ring-1 ring-inset ring-white/15 backdrop-blur-md">
         {beforeLabel}
       </span>
-      <span className="absolute top-3 right-3 rounded-[8px] bg-ink/70 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
+      <span className="absolute top-3 right-3 rounded-[var(--radius-sm)] bg-accent/85 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-accent-foreground ring-1 ring-inset ring-white/20 backdrop-blur-md">
         {afterLabel}
       </span>
     </div>

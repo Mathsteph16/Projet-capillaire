@@ -13,3 +13,6 @@ export { Badge } from "./badge";
 export { PriceCard } from "./price-card";
 export { ScanAnimation } from "./scan-animation";
 export { ImageSlider } from "./image-slider";
+export { Reveal } from "./reveal";
+export { CountUp } from "./count-up";
+export { ScoreMark } from "./score-mark";
