@@ -148,10 +148,10 @@ export default function Scan() {
       <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
         <div className="w-full max-w-lg space-y-6 animate-fade-in">
           <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
-            Tu n'as jamais vraiment mesuré où en sont tes cheveux
+            Tu n'as jamais mesuré où en sont tes cheveux
           </h1>
           <p className="text-base text-text-muted">
-            Un miroir écrase le relief, une photo ment selon la lumière. Pour décider quoi faire, il te faut une mesure stable de ta densité et de tes zones, pas une impression. C'est ce qu'on va faire, en une photo.
+            Le miroir écrase le relief, une photo ment selon la lumière. Pour décider, il te faut une mesure stable de ta densité, pas une impression. On le fait en une photo.
           </p>
 
           {/* Visuel zones */}
@@ -182,7 +182,7 @@ export default function Scan() {
               setStep("choix");
             }}
           >
-            Continuer
+            Mesurer ma densité
           </Button>
 
           <Disclaimer className="justify-center" />
@@ -197,7 +197,7 @@ export default function Scan() {
       <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
         <div className="w-full max-w-lg space-y-6 animate-fade-in">
           <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
-            On passe à ton scan capillaire
+            On passe à ton scan
           </h1>
           <p className="text-base text-text-muted">
             Ça prend une dizaine de secondes. Tes photos restent privées, et tu peux les supprimer quand tu veux.
@@ -382,7 +382,7 @@ export default function Scan() {
           </div>
 
           <p className="text-center text-base text-text-muted">
-            Voyons où tu en es vraiment.
+            Voyons où tu en es.
           </p>
 
           <Button
@@ -390,7 +390,7 @@ export default function Scan() {
             size="lg"
             onClick={() => router.push("/resultat")}
           >
-            Continuer
+            Voir mon score
           </Button>
 
           <Disclaimer className="justify-center" />

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { Card, Badge, Button, Gauge, ScoreMark } from "@/components/ui";
+import { Card, Badge, Button, Gauge, ScoreMark, TrendChart } from "@/components/ui";
 
 interface Scan {
   id: string;
@@ -108,22 +108,14 @@ export default function Suivi() {
             {/* Chart */}
             <Card>
               <h2 className="mb-4 text-[17px] font-semibold text-text">
-                Évolution du score
+                Ta courbe de densité
               </h2>
-              <div className="flex items-end gap-2 h-32">
-                {scans.map((scan) => (
-                  <div key={scan.id} className="flex flex-1 flex-col items-center gap-1">
-                    <span className="font-data text-xs text-text-faint">{scan.score}</span>
-                    <div
-                      className="w-full rounded-t-[var(--radius-sm)] bg-accent transition-all duration-[var(--dur-slow)] ease-[var(--ease-out)]"
-                      style={{ height: `${(scan.score / 100) * 100}%` }}
-                    />
-                    <span className="text-[10px] text-text-faint">
-                      {new Date(scan.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <TrendChart
+                points={scans.map((scan) => ({
+                  score: scan.score,
+                  label: new Date(scan.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }),
+                }))}
+              />
             </Card>
 
             <Link href="/scan">

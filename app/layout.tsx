@@ -30,9 +30,9 @@ const dataFont = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Scalpy ·Scanne tes cheveux, sache où tu en es",
+  title: "Scalpy · Sache où en sont tes cheveux, en une photo",
   description:
-    "Analyse ton cuir chevelu en 30 secondes. Score de densité, stade Norwood, zones fragiles et objectif visuel ·gratuit, depuis ton téléphone.",
+    "Ton score de densité, tes zones et ton stade en 30 secondes, plus l'aperçu de ton objectif. Gratuit, sans carte, depuis ton téléphone.",
   keywords: [
     "perte de cheveux",
     "scan capillaire",
@@ -42,9 +42,9 @@ export const metadata: Metadata = {
     "analyse IA",
   ],
   openGraph: {
-    title: "Scalpy ·Scanne tes cheveux, sache où tu en es",
+    title: "Scalpy · Sache où en sont tes cheveux, en une photo",
     description:
-      "Score de densité, stade Norwood et objectif visuel en 30 secondes.",
+      "Ton score de densité, tes zones et ton stade en 30 secondes, plus l'aperçu de ton objectif.",
     type: "website",
     locale: "fr_FR",
     siteName: "Scalpy",

@@ -214,10 +214,10 @@ export default function Resultat() {
         <div className="space-y-4">
           <div className="text-center">
             <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
-              Ton aperçu transformation
+              L'aperçu de ton objectif
             </h1>
             <p className="mt-2 text-sm text-text-muted">
-              Découvre ce vers quoi tu peux tendre en prenant soin de tes cheveux.
+              Vois l'objectif vers lequel tu peux tendre en prenant soin de tes cheveux.
             </p>
           </div>
 
@@ -263,7 +263,7 @@ export default function Resultat() {
 
             <div className="flex items-center justify-between text-xs text-text-faint">
               <span>
-                Norwood {result.norwood || "?"} ·Score {result.score}/100
+                Norwood {result.norwood || "?"} · Score {result.score}/100
               </span>
               <span className="font-data font-medium">12 semaines</span>
             </div>
@@ -329,7 +329,7 @@ export default function Resultat() {
         {result.recommendations.length > 0 && (
           <Card>
             <p className="mb-4 text-sm font-medium text-text-muted">
-              Ton protocole personnalisé
+              Ton plan personnalisé
             </p>
             <div className="space-y-3">
               {result.recommendations.slice(0, 2).map((rec, i) => (
@@ -346,7 +346,7 @@ export default function Resultat() {
 
         {/* CTA */}
         <Link href="/plus" onClick={() => trackEvent("unlock_click")}>
-          <Button variant="primary" size="lg">Continuer</Button>
+          <Button variant="primary" size="lg">Débloquer mon plan</Button>
         </Link>
 
         {/* Actions */}

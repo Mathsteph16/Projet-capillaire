@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
-import { Button, Card, Gauge, ProgressBar, Badge, Disclaimer, ScoreMark } from "@/components/ui";
+import { Button, Card, Gauge, ProgressBar, Badge, Disclaimer, ScoreMark, TrendChart } from "@/components/ui";
 
 interface ScanHistory {
   id: string;
@@ -248,7 +248,7 @@ export default function AppPage() {
         <div>
           <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">Ton espace</h1>
           <p className="text-sm text-text-muted">
-            Jour {currentDay}/30 ·Semaine {currentWeek}
+            Jour {currentDay}/30 · Semaine {currentWeek}
           </p>
         </div>
 
@@ -289,7 +289,7 @@ export default function AppPage() {
               </div>
             </div>
             <p className="mt-3 text-xs text-signal text-center">
-              Simulation ·objectif visuel, pas une prédiction
+              Simulation · objectif visuel, pas une prédiction
             </p>
             <a
               href={projection.fullUrl}
@@ -352,28 +352,20 @@ export default function AppPage() {
         {/* Courbe d'évolution */}
         <Card>
           <h2 className="mb-4 text-[17px] font-semibold text-text">
-            Évolution du score
+            Ta courbe de densité
           </h2>
           {scans.length >= 2 ? (
-            <div className="flex items-end gap-2 h-32">
-              {scans.map((scan, i) => (
-                <div key={scan.id} className="flex flex-1 flex-col items-center gap-1">
-                  <span className="font-data text-xs text-text-faint">{scan.score}</span>
-                  <div
-                    className="w-full rounded-t-[var(--radius-sm)] bg-accent transition-all duration-[var(--dur-slow)] ease-[var(--ease-out)]"
-                    style={{ height: `${(scan.score / 100) * 100}%` }}
-                  />
-                  <span className="text-[10px] text-text-faint">
-                    {new Date(scan.created_at).toLocaleDateString("fr-FR", { month: "short" })}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <TrendChart
+              points={scans.map((scan) => ({
+                score: scan.score,
+                label: new Date(scan.created_at).toLocaleDateString("fr-FR", { month: "short" }),
+              }))}
+            />
           ) : (
             <p className="text-sm text-text-muted">
-              Fais ton premier re-scan dans {nextRescanDate
+              Re-scanne dans {nextRescanDate
                 ? Math.max(0, Math.ceil((nextRescanDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-                : 30} jours pour voir ta courbe apparaitre.
+                : 30} jours pour voir ta courbe se tracer.
             </p>
           )}
         </Card>

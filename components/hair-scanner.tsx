@@ -29,9 +29,9 @@ type Props = {
 };
 
 const PHASES = [
-  { title: "Scan 1 sur 3 ·Face", heading: "Regarde la caméra, visage bien droit", label: "Scan du front et des golfes en cours", auto: true },
-  { title: "Scan 2 sur 3 ·Dessus", heading: "Penche la tête vers l'avant", label: "Scan de la couronne et du vertex en cours", auto: true },
-  { title: "Photo 3 sur 3 ·Portrait", heading: "Recule pour montrer ta tête entière", label: "Appuie pour prendre la photo", auto: false },
+  { title: "Scan 1 sur 3 · Face", heading: "Regarde la caméra, visage bien droit", label: "Scan du front et des golfes en cours", auto: true },
+  { title: "Scan 2 sur 3 · Dessus", heading: "Penche la tête vers l'avant", label: "Scan de la couronne et du vertex en cours", auto: true },
+  { title: "Photo 3 sur 3 · Portrait", heading: "Recule pour montrer ta tête entière", label: "Appuie pour prendre la photo", auto: false },
 ];
 
 type Landmark = { x: number; y: number; z: number };

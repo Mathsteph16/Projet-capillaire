@@ -7,13 +7,15 @@ import { Button, Card, Disclaimer } from "@/components/ui";
 
 type Plan = "monthly" | "annual";
 
-const BENEFITS = [
-  "Ton bilan complet et ton stade détaillé",
-  "Ton plan personnalisé, sommeil, stress, nutrition, soin du cuir chevelu",
-  "Ton objectif en image",
-  "Un nouveau scan chaque mois pour suivre ta courbe",
-  "Tes zones suivies une par une",
+// Pile de valeur : uniquement ce qui est réellement livré, ancres honnêtes.
+const VALUE_STACK = [
+  { label: "Ton bilan complet : score, stade et zones", value: "39 €" },
+  { label: "Ton plan personnalisé : sommeil, stress, nutrition, soin", value: "49 €" },
+  { label: "L'aperçu complet de ton objectif, sur ta photo", value: "19 €" },
+  { label: "Ton suivi mensuel et ta courbe de densité", value: "59 €" },
+  { label: "Tes zones suivies une par une, dans le temps", value: "29 €" },
 ];
+const TOTAL_VALUE = "195 €";
 
 export default function Plus() {
   const [objectif, setObjectif] = useState<string | null>(null);
@@ -108,7 +110,7 @@ export default function Plus() {
               <p className="font-data text-[40px] font-medium leading-none text-text">79 €</p>
               <p className="mt-1 text-sm text-text-muted">/an</p>
               <p className="mt-2 text-sm font-medium text-accent">
-                Soit moins de 6,60 € par mois, plus de 50 % d'économie
+                195 € de valeur, à moins de 6,60 € par mois
               </p>
             </>
           ) : (
@@ -119,17 +121,27 @@ export default function Plus() {
           )}
         </Card>
 
-        {/* Bénéfices */}
-        <ul className="space-y-3">
-          {BENEFITS.map((b) => (
-            <li key={b} className="flex items-start gap-3 text-sm text-text-muted">
-              <svg className="mt-0.5 h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-              </svg>
-              {b}
-            </li>
-          ))}
-        </ul>
+        {/* Pile de valeur : tout ce que tu débloques */}
+        <Card className="space-y-3">
+          <p className="text-sm font-medium text-text">Tout ce que tu débloques</p>
+          <ul className="space-y-2.5">
+            {VALUE_STACK.map((item) => (
+              <li key={item.label} className="flex items-center justify-between gap-3 text-sm">
+                <span className="flex items-start gap-2.5 text-text-muted">
+                  <svg className="mt-0.5 h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                  {item.label}
+                </span>
+                <span className="shrink-0 font-data text-xs text-text-faint">{item.value}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex items-center justify-between border-t border-border pt-3 text-sm">
+            <span className="font-medium text-text">Valeur totale</span>
+            <span className="font-data font-medium text-text">{TOTAL_VALUE}</span>
+          </div>
+        </Card>
 
         {/* CTA */}
         <Button
@@ -138,7 +150,7 @@ export default function Plus() {
           onClick={handleCheckout}
           loading={loading}
         >
-          Choisir
+          Débloquer mon plan
         </Button>
 
         {/* Réassurance */}

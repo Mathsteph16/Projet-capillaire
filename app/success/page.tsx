@@ -61,9 +61,9 @@ export default function Success() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             </div>
-            <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">C'est bon !</h1>
+            <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">C'est activé.</h1>
             <p className="text-sm text-text-muted">
-              Ton plan est activé. Redirection vers ton espace...
+              Ton plan est prêt. On t'emmène à ton espace.
             </p>
           </>
         )}

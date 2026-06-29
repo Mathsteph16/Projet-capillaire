@@ -169,7 +169,7 @@ export default function Onboarding() {
           ) : isTransition ? (
             <div className="space-y-6">
               <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
-                On a ce qu'il faut. Reste à mesurer pour de vrai où en sont tes cheveux.
+                On a ce qu'il faut. Reste à mesurer où en sont tes cheveux.
               </h1>
               <Button
                 variant="primary"
@@ -189,7 +189,7 @@ export default function Onboarding() {
                 Crée ton espace pour recevoir ton bilan
               </h1>
               <p className="text-base text-text-muted">
-                Ton bilan et ton suivi sont liés à ton compte. Trente secondes, et c'est à toi.
+                Ton bilan et ton suivi sont liés à ton compte. 30 secondes, et c'est à toi.
               </p>
               <AuthForm mode="signup" onSuccess={handleAuthSuccess} />
               <p className="text-xs text-text-faint">

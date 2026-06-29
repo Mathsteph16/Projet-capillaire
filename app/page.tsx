@@ -16,15 +16,15 @@ interface HeroVariant {
 const HERO_VARIANTS: HeroVariant[] = [
   {
     key: "A",
-    headline: "Scanne ton crâne. Sache où tu en es, et ce vers quoi tu peux tendre.",
-    sub: "Une photo, 30 secondes. Ton score de densité, tes zones fragiles, et un objectif visuel de ta densité retrouvée. Gratuit, sans clinique.",
+    headline: "Sache où en sont tes cheveux. Reprends le contrôle avant qu'il soit trop tard.",
+    sub: "Une photo, 30 secondes. Ton score de densité, tes zones, ton stade et l'aperçu de ton objectif. Gratuit, sans carte.",
     cta: "Faire mon scan gratuit",
   },
   {
     key: "B",
-    headline: "Ta densité capillaire en 30 secondes. Score, zones, objectif visuel.",
-    sub: "Scanne ton cuir chevelu, reçois une analyse claire et un plan concret. Gratuit, privé, hébergé en Europe.",
-    cta: "Scanner maintenant",
+    headline: "Ta densité capillaire sur 100. Mesurée et suivie, mois après mois.",
+    sub: "Scanne ton crâne, reçois ton score, tes zones et ton stade. Re-scanne chaque mois et vois ta courbe. Gratuit pour commencer.",
+    cta: "Voir mon score",
   },
 ];
 
@@ -122,8 +122,8 @@ export default function Home() {
         <div className="mx-auto flex max-w-3xl flex-col items-center justify-center gap-4 sm:flex-row sm:gap-12">
           {[
             "Bien-être, pas un avis médical",
-            "Tes photos restent privées, hébergées en Europe",
-            "Gratuit pour commencer",
+            "Tes photos restent privées, en Europe",
+            "Gratuit, sans carte",
           ].map((item) => (
             <div key={item} className="flex items-center gap-2 text-sm text-text-muted">
               <svg className="h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -146,17 +146,17 @@ export default function Home() {
               {
                 num: "1",
                 title: "Scanne.",
-                desc: "Prends ton cuir chevelu en photo. On t'en donne un score de densité, ton stade et tes zones fragiles.",
+                desc: "Prends ton crâne en photo. Tu reçois un score de densité, ton stade et tes zones.",
               },
               {
                 num: "2",
                 title: "Visualise.",
-                desc: "Découvre un objectif visuel de ta densité retrouvée, sur ta propre photo.",
+                desc: "Vois l'aperçu de ton objectif, sur ta propre photo. Une simulation, pas une promesse.",
               },
               {
                 num: "3",
                 title: "Suis.",
-                desc: "Reçois un protocole sur 30 jours et re-scanne chaque mois pour voir ta progression.",
+                desc: "Suis un plan sur 30 jours et re-scanne chaque mois pour voir ta courbe.",
               },
             ].map((s, i) => (
               <Reveal key={s.num} delay={i * 90} className="text-center">
@@ -178,8 +178,8 @@ export default function Home() {
             Le scan qui te dit tout
           </h2>
           <p className="mx-auto mt-3 max-w-md text-pretty text-sm text-text-muted">
-            En une photo, l'analyse repère ta densité, tes zones dégarnies et
-            ton stade. Tu vois enfin clair, en quelques secondes.
+            En une photo, l'analyse situe ta densité, tes zones et ton stade.
+            Tu vois clair en quelques secondes.
           </p>
           <div className="mt-10 flex justify-center">
             <Gauge score={72} label="Exemple de score" />
@@ -201,11 +201,11 @@ export default function Home() {
               },
               {
                 title: "Tu vois un cap concret.",
-                desc: "Un objectif visuel sur ta propre photo, pour savoir vers quoi tu avances.",
+                desc: "L'aperçu de ton objectif sur ta propre photo, pour savoir où tu vas.",
               },
               {
                 title: "Tu avances avec un plan.",
-                desc: "Un protocole simple sur 30 jours, pensé pour ta situation.",
+                desc: "Un plan simple sur 30 jours, adapté à ta situation.",
               },
               {
                 title: "Tu mesures tes progrès.",
@@ -240,28 +240,28 @@ export default function Home() {
           <div className="mt-10 space-y-3">
             {[
               {
-                q: "C'est un diagnostic médical ?",
-                a: "Non. Scalpy est un outil de bien-être qui te donne une estimation indicative. Ce n'est pas un avis médical et ça ne remplace pas un professionnel de santé.",
+                q: "C'est un avis médical ?",
+                a: "Non. Scalpy situe ta densité, c'est une estimation de bien-être. Ce n'est pas un avis médical et ça ne remplace pas un professionnel de santé.",
               },
               {
-                q: "Mes photos sont-elles en sécurité ?",
-                a: "Oui. Elles sont stockées de façon privée, hébergées en Europe, et jamais partagées. Tu peux les supprimer quand tu veux.",
+                q: "Mes photos sont-elles privées ?",
+                a: "Oui. Elles restent privées, hébergées en Europe, jamais partagées. Tu peux les supprimer quand tu veux.",
               },
               {
-                q: "C'est vraiment gratuit ?",
-                a: "Le scan, ton score et un aperçu de ta projection sont gratuits. Le protocole complet et le suivi mensuel sont dans l'offre payante.",
+                q: "C'est gratuit ?",
+                a: "Le scan, ton score et l'aperçu de ton objectif sont gratuits, sans carte. Le plan complet et le suivi mensuel sont payants.",
               },
               {
-                q: "L'avant/après, c'est mon vrai résultat futur ?",
-                a: "Non. C'est une simulation, un objectif visuel de ce que pourrait donner une densité retrouvée. Ce n'est pas une prédiction ni une garantie.",
+                q: "L'avant/après, c'est mon résultat futur ?",
+                a: "Non. C'est une simulation, un objectif visuel. Ce n'est pas une prédiction ni une promesse.",
               },
               {
                 q: "Ça prend combien de temps ?",
-                a: "Environ 30 secondes et une photo.",
+                a: "Une photo et 30 secondes.",
               },
               {
                 q: "C'est fait pour qui ?",
-                a: "Pour les hommes qui remarquent une perte et veulent comprendre où ils en sont et suivre leur évolution.",
+                a: "Pour les hommes qui remarquent une perte et veulent situer où ils en sont, puis suivre leur évolution.",
               },
             ].map((faq) => (
               <details key={faq.q} className="group rounded-[var(--radius-lg)] border border-border bg-surface shadow-card transition-colors duration-[var(--dur)] open:border-border-strong hover:border-border-strong">
@@ -286,7 +286,7 @@ export default function Home() {
             Prêt à savoir où tu en es ?
           </h2>
           <p className="mt-4 text-text-muted">
-            Une photo, 30 secondes. Tu verras.
+            Une photo, 30 secondes. Et tu sais où tu en es.
           </p>
           <div className="mt-8">
             <CtaButton variant={hero.key} />
