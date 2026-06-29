@@ -198,6 +198,27 @@ export default function Resultat() {
     });
   }, []);
 
+  // Régénère l'aperçu IA (en cas d'échec, ou si l'abonné veut une autre version).
+  // Pas de seed fixe côté serveur -> chaque génération donne un rendu différent.
+  async function regenerate() {
+    if (regenerating) return;
+    const portrait = sessionStorage.getItem("portraitPhoto");
+    const mask = sessionStorage.getItem("portraitMask") || undefined;
+    const photoPath = sessionStorage.getItem("scanPhotoPath") || undefined;
+    if (!result?.scanId || !portrait) return;
+    setRegenerating(true);
+    try {
+      await fetch("/api/projection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scanId: result.scanId, photoPath, beforeImage: portrait, maskImage: mask }),
+      });
+      window.location.reload();
+    } catch {
+      setRegenerating(false);
+    }
+  }
+
   if (loading) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-4 px-4">
@@ -260,24 +281,7 @@ export default function Resultat() {
                   </p>
                   {(projFailed || regenerating) && (
                     <button
-                      onClick={async () => {
-                        if (regenerating) return;
-                        const portrait = sessionStorage.getItem("portraitPhoto");
-                        const mask = sessionStorage.getItem("portraitMask") || undefined;
-                        const photoPath = sessionStorage.getItem("scanPhotoPath") || undefined;
-                        if (!result?.scanId || !portrait) return;
-                        setRegenerating(true);
-                        try {
-                          await fetch("/api/projection", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ scanId: result.scanId, photoPath, beforeImage: portrait, maskImage: mask }),
-                          });
-                          window.location.reload();
-                        } catch {
-                          setRegenerating(false);
-                        }
-                      }}
+                      onClick={regenerate}
                       disabled={regenerating}
                       className="rounded-[var(--radius-md)] bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-60"
                     >
@@ -287,6 +291,17 @@ export default function Resultat() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Abonné : possibilité de relancer une autre version de l'aperçu. */}
+          {hasProjection && isSubscriber && (
+            <button
+              onClick={regenerate}
+              disabled={regenerating}
+              className="mx-auto block text-xs text-text-faint underline-offset-2 transition-colors hover:text-text-muted hover:underline disabled:opacity-50"
+            >
+              {regenerating ? "Régénération..." : "Pas le rendu que tu voulais ? Régénérer"}
+            </button>
           )}
 
           {/* Carte objectif (style scoremax) */}
