@@ -263,10 +263,10 @@ export default function Resultat() {
         <div className="space-y-4">
           <div className="text-center">
             <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
-              L'aperçu de ton objectif
+              Ton objectif, sur ta propre photo
             </h1>
             <p className="mt-2 text-sm text-text-muted">
-              Vois l'objectif vers lequel tu peux tendre en prenant soin de tes cheveux.
+              Voici le cap que tu peux viser avec un suivi régulier. Une simulation, pas une promesse.
             </p>
           </div>
 
@@ -445,15 +445,15 @@ export default function Resultat() {
         {/* CTA conversion : on relie le déblocage au résultat qu'il vient de voir. */}
         <div className="space-y-2.5 rounded-[16px] border border-accent/30 bg-accent-soft/30 p-4 text-center">
           <p className="text-[15px] font-semibold text-text">
-            Tu sais où tu en es. Passe à l'action.
+            Tu sais où tu vas. Voici comment y arriver.
           </p>
           <p className="text-xs leading-relaxed text-text-muted">
             Ton plan complet pour {objectif || "avancer"}, ton objectif net sur ta photo, et ton suivi mois après mois pour voir ta courbe bouger.
           </p>
           <Link href="/plus" onClick={() => trackEvent("unlock_click")} className="block">
-            <Button variant="primary" size="lg" className="w-full">Débloquer mon plan</Button>
+            <Button variant="primary" size="lg" className="w-full">Démarrer mon plan</Button>
           </Link>
-          <p className="text-[11px] text-text-faint">Paiement sécurisé · annulable à tout moment</p>
+          <p className="text-[11px] text-text-faint">Satisfait ou remboursé, sans condition</p>
         </div>
 
         {/* Actions */}

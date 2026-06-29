@@ -285,6 +285,10 @@ export default function Home() {
                 a: "Non. C'est une simulation, un objectif visuel. Ce n'est pas une prédiction ni une promesse.",
               },
               {
+                q: "Et si le plan ne me convient pas ?",
+                a: "Tu es remboursé, sans condition. Tu essaies, et si ce n'est pas pour toi, on te rend ton argent.",
+              },
+              {
                 q: "Ça prend combien de temps ?",
                 a: "Une photo et 30 secondes.",
               },
