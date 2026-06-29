@@ -394,14 +394,32 @@ export default function Resultat() {
                   <p className="text-sm text-text">{rec}</p>
                 </div>
               ))}
+              {/* Teaser : on montre qu'il reste du plan a debloquer (desir). */}
+              <div className="flex items-center gap-3 rounded-[12px] border border-dashed border-accent/40 bg-accent-soft/40 p-3">
+                <svg className="h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+                <p className="text-sm text-text-muted">
+                  <span className="font-medium text-text">Ton plan complet, semaine par semaine</span> — débloqué dans Plus
+                </p>
+              </div>
             </div>
           </Card>
         )}
 
-        {/* CTA */}
-        <Link href="/plus" onClick={() => trackEvent("unlock_click")}>
-          <Button variant="primary" size="lg">Débloquer mon plan</Button>
-        </Link>
+        {/* CTA conversion : on relie le déblocage au résultat qu'il vient de voir. */}
+        <div className="space-y-2.5 rounded-[16px] border border-accent/30 bg-accent-soft/30 p-4 text-center">
+          <p className="text-[15px] font-semibold text-text">
+            Tu sais où tu en es. Passe à l'action.
+          </p>
+          <p className="text-xs leading-relaxed text-text-muted">
+            Ton plan complet pour {objectif || "avancer"}, ton objectif net sur ta photo, et ton suivi mois après mois pour voir ta courbe bouger.
+          </p>
+          <Link href="/plus" onClick={() => trackEvent("unlock_click")} className="block">
+            <Button variant="primary" size="lg" className="w-full">Débloquer mon plan</Button>
+          </Link>
+          <p className="text-[11px] text-text-faint">Paiement sécurisé · annulable à tout moment</p>
+        </div>
 
         {/* Actions */}
         <div className="flex gap-3">
