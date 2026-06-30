@@ -129,16 +129,10 @@ export default function Scan() {
         const photoB64 = await toDataUrl(file);
         trackEvent("scan_img_ready", { kb: Math.round(photoB64.length / 1024) });
 
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          // NON-BLOQUANT (void) : l'enregistrement du consentement ne doit JAMAIS
-          // retarder ni bloquer l'analyse.
-          void supabase.from("profiles").upsert(
-            { id: session.user.id, photo_consent_at: new Date().toISOString() },
-            { onConflict: "id" }
-          );
-        }
+        // (On n'appelle PLUS supabase.auth.getSession() ici : c'était LE point de
+        // blocage à 95 % — getSession pouvait pendre sur le verrou navigateur juste
+        // après l'inscription. Le serveur /api/scan identifie l'utilisateur via les
+        // cookies, on n'a besoin de rien côté client avant d'envoyer.)
 
         // Timeout dur : l'analyse ne reste JAMAIS coincee. Au-dela de 45s on
         // affiche une erreur claire au lieu de figer la barre.
