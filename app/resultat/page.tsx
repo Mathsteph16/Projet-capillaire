@@ -108,20 +108,29 @@ export default function Resultat() {
       }
     }
 
+    // Filet anti spinner-infini : quoi qu'il arrive (auth qui traîne, requête qui
+    // échoue), on sort toujours de l'écran de chargement au bout de 8 s.
+    const safety = setTimeout(() => setLoading(false), 8000);
+
     const cached = sessionStorage.getItem("scanResult");
     if (cached) {
-      const parsed = JSON.parse(cached);
-      setResult(parsed);
-      setLoading(false);
-
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        const user = session?.user;
-        if (user) {
-          loadPhoto(parsed.photoPath);
-          loadObjectif(user.id);
-        }
-      });
-      return;
+      try {
+        const parsed = JSON.parse(cached);
+        setResult(parsed);
+        setLoading(false);
+        clearTimeout(safety);
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          const user = session?.user;
+          if (user) {
+            loadPhoto(parsed.photoPath);
+            loadObjectif(user.id);
+          }
+        }).catch(() => {});
+        return;
+      } catch {
+        // sessionStorage corrompu : on l'ignore et on charge depuis la base.
+        sessionStorage.removeItem("scanResult");
+      }
     }
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -150,7 +159,10 @@ export default function Resultat() {
       }
       loadObjectif(user.id);
       setLoading(false);
-    });
+      clearTimeout(safety);
+    }).catch(() => setLoading(false));
+
+    return () => clearTimeout(safety);
   }, []);
 
   if (loading) {

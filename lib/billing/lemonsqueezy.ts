@@ -35,6 +35,11 @@ export class LemonSqueezyProvider implements BillingProvider {
               email: input.email,
               custom: { user_id: input.userId },
             },
+            // Retour explicite vers /success (page de polling) : ne dépend plus de
+            // la config du dashboard LemonSqueezy.
+            product_options: {
+              redirect_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.scalpy-app.com"}/success`,
+            },
           },
           relationships: {
             store: { data: { type: "stores", id: storeId } },
@@ -68,7 +73,7 @@ export class LemonSqueezyProvider implements BillingProvider {
     }
   }
 
-  async verifyWebhook(req: Request): Promise<WebhookEvent | null> {
+  async verifyWebhook(req: Request): Promise<WebhookEvent | "ignored" | null> {
     const secret = (await getSecret("LEMONSQUEEZY_WEBHOOK_SECRET")) ?? "";
     // Sans secret configuré, on refuse tout : pas de webhook accepté en aveugle.
     if (!secret) {
@@ -103,6 +108,7 @@ export class LemonSqueezyProvider implements BillingProvider {
       status?: string;
       customer_id?: string | number;
       renews_at?: string | null;
+      ends_at?: string | null;
     };
     const customData = payload.meta?.custom_data ?? {};
 
@@ -122,27 +128,61 @@ export class LemonSqueezyProvider implements BillingProvider {
       subscription_cancelled: "subscription_cancelled",
       subscription_expired: "subscription_expired",
       order_created: "subscription_created",
+      // Échecs / remboursements : on les traite comme des révocations d'accès.
+      subscription_payment_failed: "subscription_updated",
+      subscription_payment_refunded: "subscription_expired",
+      order_refunded: "subscription_expired",
     };
 
     const type = typeMap[eventName];
-    if (!type) return null;
+    // Signé mais hors de notre périmètre (changement de plan, licences, etc.) :
+    // on IGNORE proprement (la route répondra 200) au lieu de renvoyer 401, sinon
+    // LemonSqueezy considère l'event en échec et le renvoie en boucle.
+    if (!type) return "ignored";
+
+    // Événements qui COUPENT l'accès quoi qu'il arrive.
+    const revokeEvents = new Set([
+      "subscription_expired",
+      "subscription_payment_failed",
+      "subscription_payment_refunded",
+      "order_refunded",
+    ]);
 
     const statusMap: Record<string, WebhookEvent["status"]> = {
       active: "active",
+      on_trial: "active",
       cancelled: "canceled",
       expired: "expired",
-      on_trial: "active",
-      paused: "canceled",
+      paused: "expired",
+      past_due: "expired",
+      unpaid: "expired",
     };
+
+    // Calcul SÛR du statut (jamais "active" par défaut sur un statut inconnu) :
+    let status: WebhookEvent["status"];
+    if (revokeEvents.has(eventName)) {
+      status = "expired";
+    } else if (eventName === "subscription_cancelled") {
+      // Annulation : l'utilisateur a déjà payé sa période -> il GARDE l'accès
+      // jusqu'à la fin (ends_at). Le statut ne passera "expired" qu'à l'event
+      // subscription_expired. (Ne JAMAIS couper un abonné qui a payé sa période.)
+      status = "active";
+    } else if (eventName === "subscription_created" || eventName === "order_created") {
+      // Création = paiement réussi : actif, même si le champ status manque.
+      status = statusMap[attrs.status ?? ""] ?? "active";
+    } else {
+      // Mise à jour avec statut inconnu -> on reste prudent : non actif.
+      status = statusMap[attrs.status ?? ""] ?? "expired";
+    }
 
     return {
       type,
       userId: customData.user_id ?? "",
       plan,
-      status: statusMap[attrs.status ?? ""] ?? "active",
+      status,
       providerCustomerId: String(attrs.customer_id ?? ""),
       providerSubscriptionId: String(payload.data?.id ?? ""),
-      currentPeriodEnd: attrs.renews_at ?? null,
+      currentPeriodEnd: (attrs.ends_at ?? attrs.renews_at) ?? null,
     };
   }
 }

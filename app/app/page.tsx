@@ -14,11 +14,6 @@ interface ScanHistory {
   created_at: string;
 }
 
-interface ProjectionData {
-  originalUrl: string | null;
-  fullUrl: string | null;
-}
-
 interface QuizAnswers {
   objectif?: string;
   zone?: string;
@@ -70,7 +65,6 @@ export default function AppPage() {
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
   const [taskDates, setTaskDates] = useState<Map<string, string>>(new Map());
   const [currentDay, setCurrentDay] = useState(1);
-  const [projection, setProjection] = useState<ProjectionData>({ originalUrl: null, fullUrl: null });
   const [programWeeks, setProgramWeeks] = useState(DEFAULT_WEEKS);
   const [marketingConsent, setMarketingConsent] = useState(true);
   const router = useRouter();
@@ -134,48 +128,7 @@ export default function AppPage() {
         setTaskDates(dates);
       }
 
-      // Load projection for latest scan
-      if (scanData && scanData.length > 0) {
-        const latestScan = scanData[scanData.length - 1];
-        const { data: proj } = await supabase
-          .from("projections")
-          .select("full_path, status")
-          .eq("scan_id", latestScan.id)
-          .eq("user_id", user.id)
-          .single();
-
-        if (proj?.status === "done" && proj.full_path) {
-          const { data: fullUrl } = await supabase.storage
-            .from("projections")
-            .createSignedUrl(proj.full_path, 3600);
-
-          // L'avant = la prise portrait stockee (before.jpg), alignee au pixel
-          // avec l'apres inpainte. Repli sur la photo de scan si absente.
-          let origUrl: string | null = null;
-          const { data: bUrl } = await supabase.storage
-            .from("projections")
-            .createSignedUrl(`${user.id}/${latestScan.id}/before.jpg`, 3600);
-          origUrl = bUrl?.signedUrl ?? null;
-          if (!origUrl) {
-            const { data: scanRow } = await supabase
-              .from("scans")
-              .select("photo_path")
-              .eq("id", latestScan.id)
-              .single();
-            if (scanRow?.photo_path) {
-              const { data: oUrl } = await supabase.storage
-                .from("scalp-photos")
-                .createSignedUrl(scanRow.photo_path, 3600);
-              origUrl = oUrl?.signedUrl ?? null;
-            }
-          }
-
-          setProjection({
-            originalUrl: origUrl,
-            fullUrl: fullUrl?.signedUrl ?? null,
-          });
-        }
-      }
+      // (Plus de projection avant/après : techno abandonnée. On ne charge plus rien.)
     });
   }, [router]);
 
@@ -255,41 +208,6 @@ export default function AppPage() {
         </div>
 
         <ProgressBar value={progressPercent} />
-
-        {/* Projection (pour abonnés) */}
-        {projection.fullUrl && (
-          <Card>
-            <h2 className="mb-4 text-[17px] font-semibold text-text">
-              Ta projection
-            </h2>
-            <div className="grid grid-cols-2 gap-3">
-              {projection.originalUrl && (
-                <div>
-                  <img src={projection.originalUrl} alt="Avant" className="rounded-[12px] w-full" />
-                  <p className="mt-1 text-center text-xs text-text-faint">Avant</p>
-                </div>
-              )}
-              <div>
-                <img src={projection.fullUrl} alt="Objectif" className="rounded-[12px] w-full" />
-                <p className="mt-1 text-center text-xs text-text-faint">Objectif</p>
-              </div>
-            </div>
-            <p className="mt-3 text-xs text-signal text-center">
-              Simulation · objectif visuel, pas une prédiction
-            </p>
-            <a
-              href={projection.fullUrl}
-              download="scalpy-projection.jpg"
-              className="mt-3 flex items-center justify-center gap-2 rounded-[12px] border border-border py-2 text-sm text-text-muted hover:text-text transition-colors"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-              </svg>
-              Télécharger
-            </a>
-            <Disclaimer className="mt-3 justify-center" />
-          </Card>
-        )}
 
         {/* Programme hebdo */}
         <Card>

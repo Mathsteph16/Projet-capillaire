@@ -8,6 +8,11 @@ export async function POST(req: Request) {
     const billing = getBillingProvider();
     const event = await billing.verifyWebhook(req);
 
+    // Signature valide mais event hors périmètre : on accuse réception (200) pour
+    // que LemonSqueezy ne renvoie pas l'event en boucle.
+    if (event === "ignored") {
+      return NextResponse.json({ ignored: true }, { status: 200 });
+    }
     if (!event) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }

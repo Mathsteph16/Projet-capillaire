@@ -31,6 +31,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ url });
   } catch (e) {
     console.error("Checkout error:", e);
+    // Config paiement absente (clés/variantes pas encore posées) : message clair
+    // et 503, pas un 500 générique.
+    const msg = e instanceof Error ? e.message : "";
+    if (msg.includes("non configuré")) {
+      return NextResponse.json(
+        { error: "Le paiement n'est pas encore disponible. Réessaie dans un instant." },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
       { error: "Erreur lors de la création du paiement" },
       { status: 500 }

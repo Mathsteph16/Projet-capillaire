@@ -19,17 +19,24 @@ export function useAuthState(): AuthState {
     async function resolve() {
       // getSession() lit la session en LOCAL (instantané) au lieu de getUser()
       // qui fait un aller-retour réseau lent -> la nav s'affiche tout de suite.
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user;
-      if (!active) return;
-      if (!user) { setState("out"); return; }
-      const { data: sub } = await supabase
-        .from("subscriptions")
-        .select("status")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (!active) return;
-      setState(sub?.status === "active" ? "subscriber" : "free");
+      let hasUser = false;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!active) return;
+        hasUser = !!session?.user;
+        if (!session?.user) { setState("out"); return; }
+        const { data: sub } = await supabase
+          .from("subscriptions")
+          .select("status")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        if (!active) return;
+        setState(sub?.status === "active" ? "subscriber" : "free");
+      } catch {
+        // Ne JAMAIS rester coincé sur "loading" (sinon la nav mobile disparaît) :
+        // on dégrade proprement selon qu'on a vu une session ou non.
+        if (active) setState(hasUser ? "free" : "out");
+      }
     }
 
     resolve();

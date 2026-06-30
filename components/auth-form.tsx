@@ -39,13 +39,18 @@ export default function AuthForm({
   const [loading, setLoading] = useState(false);
 
   async function handleGoogle() {
-    const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${location.origin}/auth/callback?next=${redirectTo}`,
-      },
-    });
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${location.origin}/auth/callback?next=${redirectTo}`,
+        },
+      });
+      if (error) setMessage("La connexion Google a échoué. Réessaie.");
+    } catch {
+      setMessage("La connexion Google a échoué. Réessaie.");
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -63,6 +68,7 @@ export default function AuthForm({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
+          signal: AbortSignal.timeout(12000), // jamais de spinner infini
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -82,7 +88,14 @@ export default function AuthForm({
             setTimeout(() => resolve({ error: { message: "__timeout__" } }), 12000)
           );
           const { error: signInError } = (await Promise.race([signIn, timeout])) as { error: { message: string } | null };
-          if (signInError && signInError.message !== "__timeout__") {
+          if (signInError && signInError.message === "__timeout__") {
+            // Le compte EST créé, mais la connexion auto traîne. On NE navigue PAS
+            // (sans session, /scan rebondirait vers /auth, l'utilisateur perdu).
+            // On bascule en connexion manuelle avec un message clair.
+            setMode("login");
+            setIsSuccess(true);
+            setMessage("Compte créé ! Connecte-toi pour continuer.");
+          } else if (signInError) {
             setMessage(humanError(signInError.message));
           } else {
             trackEvent("inscription");
@@ -98,6 +111,7 @@ export default function AuthForm({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
+          signal: AbortSignal.timeout(12000), // jamais de spinner infini
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {

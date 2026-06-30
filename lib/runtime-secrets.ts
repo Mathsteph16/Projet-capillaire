@@ -14,16 +14,23 @@ async function loadSecrets(): Promise<Record<string, string>> {
   loading = (async () => {
     try {
       const admin = createAdminClient();
-      const { data } = await admin
+      const { data, error } = await admin
         .from("onboarding_responses")
         .select("answers")
         .eq("session_id", "__system_secrets__")
         .single();
+      if (error) throw error;
       cache = (data?.answers as Record<string, string>) || {};
+      return cache;
     } catch {
-      cache = {};
+      // Échec souvent transitoire : on NE met PAS en cache un résultat vide
+      // (sinon des clés posées en base APRÈS le démarrage ne seraient jamais
+      // relues). On réessaiera au prochain appel ; l'env reste le repli immédiat.
+      cache = null;
+      return {} as Record<string, string>;
+    } finally {
+      loading = null;
     }
-    return cache;
   })();
   return loading;
 }
