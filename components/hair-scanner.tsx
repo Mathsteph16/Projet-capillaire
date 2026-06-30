@@ -133,8 +133,8 @@ function assessQuality(src: HTMLCanvasElement): { ok: boolean; reason: string } 
       sum += L; sum2 += L * L; n++;
     }
   const blurVar = sum2 / n - (sum / n) * (sum / n);
-  if (brightness < 70) return { ok: false, reason: "Trop sombre, augmente la lumière avant de prendre la photo" };
-  if (brightness > 215) return { ok: false, reason: "Trop de lumiere, eloigne-toi de la source" };
+  if (brightness < 45) return { ok: false, reason: "Trop sombre, mets-toi face à la lumière avant de prendre la photo" };
+  if (brightness > 230) return { ok: false, reason: "Trop de lumiere, eloigne-toi de la source" };
   if (blurVar < 70) return { ok: false, reason: "Image floue, tiens le telephone bien stable" };
   return { ok: true, reason: "" };
 }
@@ -458,9 +458,10 @@ export default function HairScanner({ onAllCaptured }: Props) {
             msg = "Recule pour cadrer toute ta tête, puis appuie";
           }
 
-          // Lumiere en direct prioritaire : sans bonne lumiere, rien d'autre ne
-          // compte (et la prise serait refusee). On le dit tout de suite.
-          if (lightMsgRef.current) {
+          // La lumière ne s'affiche QUE si le cadrage est déjà bon. Sinon le vrai
+          // problème c'est le placement du visage ("centre ton visage") -> on le
+          // garde en priorité, on n'écrase pas le bon message par la lumière.
+          if (lightMsgRef.current && ready) {
             msg = lightMsgRef.current;
             ready = false;
           }
@@ -497,9 +498,11 @@ export default function HairScanner({ onAllCaptured }: Props) {
         if (!lightCanvasRef.current) lightCanvasRef.current = document.createElement("canvas");
         try {
           const b = frameBrightness(video, lightCanvasRef.current);
+          // Seuil bas (45) : on n'alerte QUE si c'est vraiment sombre. En lumière
+          // normale une caméra frontale rend 80-150 -> plus de faux positif.
           lightMsgRef.current =
-            b < 75 ? "Trop sombre, augmente la lumière (mets-toi face à une fenêtre)"
-            : b > 215 ? "Trop de lumière, éloigne-toi de la source"
+            b < 45 ? "Mets-toi face à la lumière, là il fait trop sombre"
+            : b > 225 ? "Trop de lumière, éloigne-toi un peu de la source"
             : "";
         } catch { lightMsgRef.current = ""; }
       }
@@ -569,7 +572,7 @@ export default function HairScanner({ onAllCaptured }: Props) {
         await video.play();
 
         if (!mounted) return;
-        setLoadingMsg("Chargement de l'analyse · le 1er chargement peut prendre quelques secondes");
+        setLoadingMsg("Préparation du scanner...");
 
         const vision = await FilesetResolver.forVisionTasks(WASM);
 
@@ -774,7 +777,7 @@ export default function HairScanner({ onAllCaptured }: Props) {
           )}
           {struggling && status === "ready" && (
             <span className="max-w-[92%] rounded-full bg-amber-500/85 px-4 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
-              Mets-toi face à une lumière — ou appuie pour prendre la photo
+              Tu peux appuyer sur « Prendre la photo » quand tu es prêt
             </span>
           )}
           {status === "captured" && (

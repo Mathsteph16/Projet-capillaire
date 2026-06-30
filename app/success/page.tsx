@@ -82,7 +82,7 @@ export default function Success() {
             </h1>
             <p className="text-sm text-text-muted">
               Merci ! Ton accès s'active tout seul, ça peut prendre 1 à 2 minutes.
-              Clique pour vérifier — pas besoin de payer à nouveau.
+              Clique pour vérifier, pas besoin de payer à nouveau.
             </p>
             <Button variant="primary" onClick={() => window.location.reload()}>
               Vérifier mon accès

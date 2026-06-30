@@ -52,7 +52,7 @@ export const metadata: Metadata = {
     url: "https://www.scalpy-app.com",
     locale: "fr_FR",
     siteName: "Scalpy",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Scalpy — analyse capillaire en une photo" }],
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Scalpy, analyse capillaire en une photo" }],
   },
   twitter: {
     card: "summary_large_image",

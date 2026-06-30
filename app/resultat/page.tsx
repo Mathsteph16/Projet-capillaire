@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
-import { Gauge, Card, Button, Disclaimer, Badge, BeforeAfter, ScoreMark } from "@/components/ui";
+import { Gauge, Card, Button, Badge, ScoreMark } from "@/components/ui";
 
 interface ScanResult {
   usable: boolean;
@@ -261,59 +261,24 @@ export default function Resultat() {
     <main className="flex flex-1 flex-col items-center px-5 py-10">
       <div className="w-full max-w-lg space-y-6 animate-fade-in">
 
-        {/* ─── HERO : Aperçu transformation ─── */}
+        {/* ─── EN-TÊTE : bilan honnête (on ne montre PAS d'avant/après irréaliste,
+            on ne peut pas promettre une repousse ; on situe et on propose un plan) ─── */}
         <div className="space-y-4">
           <div className="text-center">
             <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
-              Ton objectif, sur ta propre photo
+              Voici où en sont tes cheveux
             </h1>
             <p className="mt-2 text-sm text-text-muted">
-              Voici le cap que tu peux viser avec un suivi régulier. Une simulation, pas une promesse.
+              Ton bilan complet ci-dessous. L'objectif : préserver et ralentir, avec un plan fait pour toi.
             </p>
           </div>
 
-          {hasProjection ? (
-            <BeforeAfter
-              beforeUrl={originalUrl}
-              afterUrl={isSubscriber ? (fullProjectionUrl || teaserUrl!) : teaserUrl!}
-              locked={!isSubscriber}
-              onUnlock={() => { trackEvent("unlock_click"); window.location.assign("/plus"); }}
+          {originalUrl && (
+            <img
+              src={originalUrl}
+              alt="Ta photo de scan"
+              className="aspect-[3/4] w-full rounded-[16px] border border-border object-cover"
             />
-          ) : (
-            <div className="relative w-full overflow-hidden rounded-[16px] bg-surface-2 aspect-[3/4] flex items-center justify-center">
-              {projectionLoading ? (
-                <div className="flex flex-col items-center gap-3">
-                  <ScoreMark size={36} spin value={0.66} />
-                  <p className="text-sm text-text-faint">Génération de ta projection...</p>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-3 px-8 text-center">
-                  <p className="text-sm text-text-faint">
-                    {projFailed ? "La génération a échoué cette fois." : "Projection non disponible pour le moment."}
-                  </p>
-                  {(projFailed || regenerating) && (
-                    <button
-                      onClick={regenerate}
-                      disabled={regenerating}
-                      className="rounded-[var(--radius-md)] bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-60"
-                    >
-                      {regenerating ? "Régénération..." : "Régénérer mon aperçu"}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Abonné : possibilité de relancer une autre version de l'aperçu. */}
-          {hasProjection && isSubscriber && (
-            <button
-              onClick={regenerate}
-              disabled={regenerating}
-              className="mx-auto block text-xs text-text-faint underline-offset-2 transition-colors hover:text-text-muted hover:underline disabled:opacity-50"
-            >
-              {regenerating ? "Régénération..." : "Pas le rendu que tu voulais ? Régénérer"}
-            </button>
           )}
 
           {/* Carte objectif (style scoremax) */}
@@ -437,7 +402,7 @@ export default function Resultat() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                 </svg>
                 <p className="text-sm text-text-muted">
-                  <span className="font-medium text-text">Ton plan complet, semaine par semaine</span> — débloqué dans Plus
+                  <span className="font-medium text-text">Ton plan complet, semaine par semaine</span>, débloqué dans Plus
                 </p>
               </div>
             </div>
@@ -467,8 +432,6 @@ export default function Resultat() {
             <Button variant="ghost" size="md" className="w-full">Mon suivi</Button>
           </Link>
         </div>
-
-        <Disclaimer className="justify-center" />
       </div>
     </main>
   );
