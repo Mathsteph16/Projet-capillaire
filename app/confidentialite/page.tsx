@@ -152,12 +152,8 @@ export default function Confidentialite() {
               automatisée des photos) · États-Unis
             </li>
             <li>
-              <span className="text-foreground">fal.ai / Google</span>{" "}
-              (génération d'image pour la projection) · États-Unis
-            </li>
-            <li>
-              <span className="text-foreground">Lemon Squeezy</span> (paiement,
-              Merchant-of-Record) · États-Unis
+              <span className="text-foreground">Stripe</span> (paiement
+              sécurisé) · États-Unis / Irlande
             </li>
             <li>
               <span className="text-foreground">Resend</span> (emails

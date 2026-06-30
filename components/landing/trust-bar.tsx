@@ -1,4 +1,4 @@
-const PARTNERS = ["Anthropic Claude", "MediaPipe", "Supabase", "Lemon Squeezy"];
+const PARTNERS = ["Anthropic Claude", "MediaPipe", "Supabase", "Stripe"];
 
 const BADGES: { label: string; icon: React.ReactNode }[] = [
   {

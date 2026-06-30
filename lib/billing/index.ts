@@ -30,10 +30,10 @@ export interface BillingProvider {
   cancelSubscription(subscriptionId: string): Promise<void>;
 }
 
-import { LemonSqueezyProvider } from "./lemonsqueezy";
+import { StripeProvider } from "./stripe";
 
-export { LemonSqueezyProvider };
+export { StripeProvider };
 
 export function getBillingProvider(): BillingProvider {
-  return new LemonSqueezyProvider();
+  return new StripeProvider();
 }

@@ -11,7 +11,7 @@ type Plan = "monthly" | "annual";
 const VALUE_STACK = [
   { label: "Ton bilan complet : score, stade et zones", value: "39 €" },
   { label: "Ton plan personnalisé : sommeil, stress, nutrition, soin", value: "49 €" },
-  { label: "L'aperçu complet de ton objectif, sur ta photo", value: "19 €" },
+  { label: "Tes conseils détaillés, adaptés à ton cas", value: "19 €" },
   { label: "Ton suivi mensuel et ta courbe de densité", value: "59 €" },
   { label: "Tes zones suivies une par une, dans le temps", value: "29 €" },
 ];
