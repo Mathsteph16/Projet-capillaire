@@ -201,24 +201,8 @@ export default function Scan() {
         sessionStorage.setItem("scanResult", JSON.stringify(data));
         if (data.photoPath) sessionStorage.setItem("scanPhotoPath", data.photoPath);
 
-        // Inpainting au masque : on envoie la prise portrait (l'avant) + son masque.
-        // Garde anti faux-apres : stade tres avance, on ne genere pas de projection.
-        const portrait = sessionStorage.getItem("portraitPhoto");
-        const portraitMask = sessionStorage.getItem("portraitMask") || undefined;
-        const veryAdvanced = ["VI", "VII"].includes(String(data.norwood || "").toUpperCase());
-        if (data.scanId && portrait && !veryAdvanced) {
-          fetch("/api/projection", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              scanId: data.scanId,
-              photoPath: data.photoPath,
-              beforeImage: portrait,
-              maskImage: portraitMask,
-            }),
-          }).catch(() => {});
-        }
-
+        // (Plus de génération d'image avant/après : on a abandonné cette techno,
+        // on affiche directement le bilan honnête + le plan.)
         setStep("bilan");
       } catch {
         clearInterval(stepInterval);

@@ -71,15 +71,9 @@ function ScalpMap({ zones }: { zones: string[] }) {
 
 export default function Resultat() {
   const [result, setResult] = useState<ScanResult | null>(null);
-  const [teaserUrl, setTeaserUrl] = useState<string | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
-  const [fullProjectionUrl, setFullProjectionUrl] = useState<string | null>(null);
   const [objectif, setObjectif] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [projectionLoading, setProjectionLoading] = useState(true);
-  const [isSubscriber, setIsSubscriber] = useState(false);
-  const [projFailed, setProjFailed] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     trackEvent("result_viewed");
@@ -90,64 +84,15 @@ export default function Resultat() {
 
     const supabase = createClient();
 
-    async function loadProjection(userId: string, scanId: string) {
-      // Abonné ou non : décide si on a le droit de servir l'image NETTE.
-      const { data: sub } = await supabase
-        .from("subscriptions")
-        .select("status")
-        .eq("user_id", userId)
-        .single();
-      const subActive = sub?.status === "active";
-      setIsSubscriber(subActive);
-
-      // Filet "avant" : après un refresh, la prise n'est plus en sessionStorage.
-      // On la recharge depuis le storage (before.jpg stocké côté serveur au scan)
-      // pour que l'avant/après s'affiche quand même.
-      if (!sessionStorage.getItem("portraitPhoto")) {
-        const { data: bUrl } = await supabase.storage
-          .from("projections")
-          .createSignedUrl(`${userId}/${scanId}/before.jpg`, 3600);
-        if (bUrl?.signedUrl) setOriginalUrl(bUrl.signedUrl);
-      }
-
-      // La projection est lancée en arrière-plan au moment du scan : elle peut
-      // ne pas être prête. On attend (poll) tant qu'elle est "generating", avec un
-      // intervalle qui s'allonge un peu (snappy au début, ~45 s max au total).
-      let proj: { teaser_path: string | null; full_path: string | null; status: string } | null = null;
-      for (let attempt = 0; attempt < 14; attempt++) {
-        const { data } = await supabase
-          .from("projections")
-          .select("teaser_path, full_path, status")
-          .eq("user_id", userId)
-          .eq("scan_id", scanId)
-          .single();
-        proj = data;
-        if (!proj || proj.status === "done" || proj.status === "failed") break;
-        await new Promise((r) => setTimeout(r, attempt < 6 ? 2500 : 4000));
-      }
-
-      setProjFailed(proj?.status === "failed");
-
-      if (proj?.status === "done") {
-        if (proj.teaser_path) {
-          const { data: url } = await supabase.storage
-            .from("projections")
-            .createSignedUrl(proj.teaser_path, 3600);
-          if (url?.signedUrl) setTeaserUrl(url.signedUrl);
-        }
-        // L'URL signée de la version nette n'est créée QUE pour un abonné actif.
-        // Un non-abonné ne reçoit jamais le full : impossible de contourner le flou.
-        if (subActive && proj.full_path) {
-          const { data: url } = await supabase.storage
-            .from("projections")
-            .createSignedUrl(proj.full_path, 3600);
-          if (url?.signedUrl) setFullProjectionUrl(url.signedUrl);
-        }
-      }
-
-      // L'avant reste la prise portrait (sessionStorage), pour s'aligner au pixel
-      // avec l'apres inpainte a partir de cette meme prise.
-      setProjectionLoading(false);
+    // On affiche la VRAIE photo du scan (pas d'avant/après simulé). En direct après
+    // le scan elle est déjà en sessionStorage (instantané) ; après un refresh on la
+    // recharge depuis le storage via le chemin enregistré au moment du scan.
+    async function loadPhoto(photoPath?: string) {
+      if (sessionStorage.getItem("portraitPhoto") || !photoPath) return;
+      const { data: url } = await supabase.storage
+        .from("scalp-photos")
+        .createSignedUrl(photoPath, 3600);
+      if (url?.signedUrl) setOriginalUrl(url.signedUrl);
     }
 
     async function loadObjectif(userId: string) {
@@ -172,7 +117,7 @@ export default function Resultat() {
       supabase.auth.getSession().then(({ data: { session } }) => {
         const user = session?.user;
         if (user) {
-          if (parsed.scanId) loadProjection(user.id, parsed.scanId);
+          loadPhoto(parsed.photoPath);
           loadObjectif(user.id);
         }
       });
@@ -181,7 +126,7 @@ export default function Resultat() {
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const user = session?.user;
-      if (!user) { setLoading(false); setProjectionLoading(false); return; }
+      if (!user) { setLoading(false); return; }
       const { data } = await supabase
         .from("scans")
         .select("*")
@@ -201,35 +146,12 @@ export default function Resultat() {
           confidence: "medium",
           scanId: data.id,
         });
-        loadProjection(user.id, data.id);
-      } else {
-        setProjectionLoading(false);
+        loadPhoto(data.photo_path);
       }
       loadObjectif(user.id);
       setLoading(false);
     });
   }, []);
-
-  // Régénère l'aperçu IA (en cas d'échec, ou si l'abonné veut une autre version).
-  // Pas de seed fixe côté serveur -> chaque génération donne un rendu différent.
-  async function regenerate() {
-    if (regenerating) return;
-    const portrait = sessionStorage.getItem("portraitPhoto");
-    const mask = sessionStorage.getItem("portraitMask") || undefined;
-    const photoPath = sessionStorage.getItem("scanPhotoPath") || undefined;
-    if (!result?.scanId || !portrait) return;
-    setRegenerating(true);
-    try {
-      await fetch("/api/projection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scanId: result.scanId, photoPath, beforeImage: portrait, maskImage: mask }),
-      });
-      window.location.reload();
-    } catch {
-      setRegenerating(false);
-    }
-  }
 
   if (loading) {
     return (
@@ -254,8 +176,6 @@ export default function Resultat() {
   const horizonDate = new Date();
   horizonDate.setDate(horizonDate.getDate() + 84);
   const dateStr = horizonDate.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
-
-  const hasProjection = originalUrl && (teaserUrl || fullProjectionUrl);
 
   return (
     <main className="flex flex-1 flex-col items-center px-5 py-10">
@@ -415,7 +335,7 @@ export default function Resultat() {
             Tu sais où tu vas. Voici comment y arriver.
           </p>
           <p className="text-xs leading-relaxed text-text-muted">
-            Ton plan complet pour {objectif || "avancer"}, ton objectif net sur ta photo, et ton suivi mois après mois pour voir ta courbe bouger.
+            Ton plan complet pour {objectif || "avancer"}, semaine par semaine, et ton suivi mois après mois pour voir ta courbe bouger.
           </p>
           <Link href="/plus" onClick={() => trackEvent("unlock_click")} className="block">
             <Button variant="primary" size="lg" className="w-full">Démarrer mon plan</Button>

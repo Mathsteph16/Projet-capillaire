@@ -53,38 +53,53 @@ interface AnalysisResult {
   confidence: string;
 }
 
-function validateResult(obj: Record<string, unknown>): AnalysisResult | null {
-  if (typeof obj.usable !== "boolean") return null;
-  if (typeof obj.message !== "string") return null;
+const VALID_NORWOOD = ["I", "II", "III", "IV", "V", "VI", "VII"];
 
-  // Photo INEXPLOITABLE : on n'exige RIEN d'autre (zones/reco/score peuvent manquer)
-  // -> on renvoie un résultat "non exploitable" propre (message "réessaie") au lieu
-  // de planter en "Invalid schema".
-  if (!obj.usable) {
+// Validation TOLÉRANTE : on coerce au lieu de rejeter. Le but est qu'un SEUL
+// appel à l'IA suffise quasiment toujours (plus de 2e appel qui double le temps).
+// On ne renvoie null que si la photo est vraiment inexploitable.
+function validateResult(obj: Record<string, unknown>): AnalysisResult | null {
+  const usable = obj.usable === true || obj.usable === "true";
+  const message =
+    typeof obj.message === "string" && obj.message.trim() ? (obj.message as string) : "";
+  const zones = Array.isArray(obj.zones) ? (obj.zones as unknown[]).map(String) : [];
+  const recommendations = Array.isArray(obj.recommendations)
+    ? (obj.recommendations as unknown[]).map(String).filter(Boolean)
+    : [];
+  const confidence = typeof obj.confidence === "string" ? (obj.confidence as string) : "medium";
+
+  if (!usable) {
     return {
-      usable: false, score: null, norwood: null,
-      zones: Array.isArray(obj.zones) ? (obj.zones as string[]) : [],
-      recommendations: Array.isArray(obj.recommendations) ? (obj.recommendations as string[]) : [],
-      message: obj.message as string,
-      confidence: (obj.confidence as string) || "low",
+      usable: false, score: null, norwood: null, zones, recommendations,
+      message: message || "On n'a pas réussi à lire cette photo. Réessaie avec plus de lumière, crâne bien dans le cadre.",
+      confidence: confidence || "low",
     };
   }
 
-  // Photo exploitable : on exige les données utiles.
-  if (typeof obj.score !== "number" || obj.score < 0 || obj.score > 100) return null;
-  const validNorwood = ["I", "II", "III", "IV", "V", "VI", "VII"];
-  if (typeof obj.norwood !== "string" || !validNorwood.includes(obj.norwood)) return null;
-  if (!Array.isArray(obj.zones)) return null;
-  if (!Array.isArray(obj.recommendations) || obj.recommendations.length < 1) return null;
+  // Score : coerce (number ou "72"). Si vraiment pas de nombre -> inexploitable.
+  const rawScore = typeof obj.score === "number" ? obj.score : parseInt(String(obj.score ?? ""), 10);
+  if (!Number.isFinite(rawScore)) return null;
+  const score = Math.max(0, Math.min(100, Math.round(rawScore)));
+
+  // Norwood : normalise ("ii"->"II", "2"->"II"). Si invalide, on dérive du score
+  // (repère honnête, jamais bloquant) plutôt que de rejeter toute l'analyse.
+  const numToRoman = ["I", "I", "II", "III", "IV", "V", "VI", "VII"];
+  let norwood = String(obj.norwood ?? "").toUpperCase().trim();
+  if (!VALID_NORWOOD.includes(norwood)) {
+    const n = parseInt(norwood, 10);
+    norwood = Number.isFinite(n) && n >= 1 && n <= 7
+      ? numToRoman[n]
+      : score >= 80 ? "II" : score >= 60 ? "III" : score >= 40 ? "IV" : "V";
+  }
 
   return {
     usable: true,
-    score: obj.score as number,
-    norwood: obj.norwood as string,
-    zones: obj.zones as string[],
-    recommendations: obj.recommendations as string[],
-    message: obj.message as string,
-    confidence: (obj.confidence as string) || "medium",
+    score,
+    norwood,
+    zones,
+    recommendations: recommendations.length ? recommendations : ["Sommeil régulier", "Réduis le stress", "Soin doux du cuir chevelu"],
+    message: message || "Voici ton estimation. Continue à prendre soin de toi.",
+    confidence,
   };
 }
 
@@ -162,6 +177,65 @@ export async function DELETE(request: Request) {
   return NextResponse.json({ ok: true });
 }
 
+// Analyse qui NE LÈVE JAMAIS : 1 appel normal, 1 essai strict si le JSON est
+// malformé, sinon repli "non exploitable" propre. -> l'API renvoie toujours 200.
+async function analyze(client: Anthropic, images: ScanImage[], model: string): Promise<AnalysisResult> {
+  try {
+    return await callAnalysis(client, images, model, false);
+  } catch {
+    try {
+      return await callAnalysis(client, images, model, true);
+    } catch {
+      return {
+        usable: false, score: null, norwood: null, zones: [], recommendations: [],
+        message: "On n'a pas réussi à lire cette photo cette fois. Réessaie avec plus de lumière, le crâne bien dans le cadre.",
+        confidence: "low",
+      };
+    }
+  }
+}
+
+// Enregistrement BEST-EFFORT et BORNÉ DANS LE TEMPS (12 s max) : upload photo +
+// écriture base. Si ça traîne ou échoue, on renvoie {} et la réponse part quand
+// même avec le résultat. La persistance ne peut JAMAIS bloquer l'affichage du bilan
+// (c'était la cause du blocage à 95 % chez les utilisateurs connectés).
+async function persistScan(
+  bytes: Buffer,
+  result: AnalysisResult
+): Promise<{ scanId?: string; photoPath?: string }> {
+  const run = (async (): Promise<{ scanId?: string; photoPath?: string }> => {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return {};
+    const admin = createAdminClient();
+    const tempId = crypto.randomUUID();
+    const photoPath = `${user.id}/${tempId}/original.jpg`;
+    await admin.storage.from("scalp-photos").upload(photoPath, bytes, { contentType: "image/jpeg" });
+    const { data: scan } = await admin.from("scans").insert({
+      user_id: user.id,
+      score: result.score,
+      norwood: result.norwood,
+      zones: result.zones,
+      recommendations: result.recommendations,
+      message: result.message,
+      raw_analysis: result,
+      status: result.usable ? "done" : "unusable",
+      prompt_version: PROMPT_VERSION,
+      photo_path: photoPath,
+    }).select("id").single();
+    return { scanId: scan?.id as string | undefined, photoPath };
+  })();
+
+  const timeout = new Promise<{ scanId?: string; photoPath?: string }>((r) =>
+    setTimeout(() => r({}), 12_000)
+  );
+  try {
+    return await Promise.race([run, timeout]);
+  } catch {
+    return {};
+  }
+}
+
 export async function POST(request: Request) {
   const apiKey = await getSecret("ANTHROPIC_API_KEY");
   if (!apiKey) {
@@ -177,9 +251,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Photos envoyées en base64 dans du JSON. Le multipart/formData casse sur ce
-    // déploiement Next 16 ("Failed to parse body as FormData") -> JSON = fiable
-    // (comme l'inscription et la projection qui fonctionnent).
+    // Photos en base64 dans du JSON (le multipart/FormData casse sur ce Next 16).
     const body = (await request.json().catch(() => null)) as { photo?: unknown; photoTop?: unknown } | null;
     const decode = (d: unknown): { mediaType: string; buffer: Buffer } | null => {
       if (typeof d !== "string") return null;
@@ -192,63 +264,20 @@ export async function POST(request: Request) {
     if (!main) return NextResponse.json({ error: "Aucune photo valide envoyée" }, { status: 400 });
     if (main.buffer.length > 10 * 1024 * 1024) return NextResponse.json({ error: "Photo trop lourde (max 10 Mo)" }, { status: 400 });
 
-    const bytes = main.buffer;
-    const base64 = main.buffer.toString("base64");
-    const mediaType = main.mediaType;
-
-    // Image du dessus du crâne (optionnelle) : on l'ajoute à l'analyse si valide.
-    const images: ScanImage[] = [{ base64, mediaType }];
+    const images: ScanImage[] = [{ base64: main.buffer.toString("base64"), mediaType: main.mediaType }];
     const top = decode(body?.photoTop);
     if (top && top.buffer.length > 0 && top.buffer.length <= 10 * 1024 * 1024) {
       images.push({ base64: top.buffer.toString("base64"), mediaType: top.mediaType });
     }
 
     const model = process.env.SCAN_MODEL || "claude-haiku-4-5-20251001";
-    const client = new Anthropic({ apiKey, timeout: 30_000 });
+    // timeout court + 0 retry SDK : même une IA lente rend la main bien avant les 45 s client.
+    const client = new Anthropic({ apiKey, timeout: 22_000, maxRetries: 0 });
 
-    let result: AnalysisResult;
-    try {
-      result = await callAnalysis(client, images, model);
-    } catch {
-      result = await callAnalysis(client, images, model, true);
-    }
+    const result = await analyze(client, images, model);
+    const { scanId, photoPath } = await persistScan(main.buffer, result);
 
-    // Save scan to database + upload photo server-side
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    let scanId: string | undefined;
-    let photoPath: string | undefined;
-    if (user) {
-      const admin = createAdminClient();
-      const tempId = crypto.randomUUID();
-      photoPath = `${user.id}/${tempId}/original.jpg`;
-
-      await admin.storage
-        .from("scalp-photos")
-        .upload(photoPath, Buffer.from(bytes), { contentType: "image/jpeg" });
-
-      const { data: scan } = await admin.from("scans").insert({
-        user_id: user.id,
-        score: result.score,
-        norwood: result.norwood,
-        zones: result.zones,
-        recommendations: result.recommendations,
-        message: result.message,
-        raw_analysis: result,
-        status: result.usable ? "done" : "unusable",
-        prompt_version: PROMPT_VERSION,
-        photo_path: photoPath,
-      }).select("id").single();
-      scanId = scan?.id;
-    }
-
-    return NextResponse.json({
-      ...result,
-      scanId,
-      photoPath,
-      prompt_version: PROMPT_VERSION,
-    });
+    return NextResponse.json({ ...result, scanId, photoPath, prompt_version: PROMPT_VERSION });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erreur inconnue";
     return NextResponse.json({ error: message }, { status: 500 });
