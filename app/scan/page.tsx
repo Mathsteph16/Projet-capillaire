@@ -82,9 +82,10 @@ export default function Scan() {
     // du pourcentage maintenant, plus de timer séparé désynchronisé).
     const stepInterval = setInterval(() => {}, 100000);
 
-    // Progression LINÉAIRE qui ne stagne JAMAIS : montée régulière jusqu'à 95 %
-    // tant que l'analyse tourne, puis remplissage rapide jusqu'à 100 % au résultat.
-    // L'étape affichée est DÉRIVÉE du % (synchro parfaite, fini le "90 % à l'étape 2").
+    // Progression ASYMPTOTIQUE qui ne stagne JAMAIS visuellement : elle s'approche
+    // de 95 % en ralentissant (rapide au début, lente vers la fin) -> même si
+    // l'analyse prend 40-50 s, la barre bouge toujours un peu, jamais "bloquée" à
+    // 95 %. Au résultat, remplissage rapide jusqu'à 100 %. Étape dérivée du %.
     let progressTarget = 95;
     let pct = 0;
     const percentInterval = setInterval(() => {
@@ -92,15 +93,14 @@ export default function Scan() {
         pct = pct + (100 - pct) * 0.25; // remplissage final rapide
         if (pct >= 99.5) { pct = 100; clearInterval(percentInterval); }
       } else {
-        pct = Math.min(95, pct + 0.5); // ~95 % en ~17 s, montée régulière
+        pct = pct + (95 - pct) * 0.015; // approche douce de 95 %, ne stagne jamais
       }
       setAnalysisPercent(pct);
       setAnalysisStep(Math.min(ANALYSIS_STEPS.length - 1, Math.floor((pct / 100) * ANALYSIS_STEPS.length)));
     }, 90);
 
-    // FILET DE SÉCURITÉ GLOBAL : quoi qu'il arrive (un await qui traîne, un blocage
-    // imprévu), l'écran d'analyse ne reste JAMAIS coincé. Au bout de 50 s sans
-    // résultat, on sort proprement vers l'écran de reprise.
+    // FILET DE SÉCURITÉ GLOBAL : quoi qu'il arrive, l'écran d'analyse ne reste
+    // JAMAIS coincé. 62 s (l'analyse IA peut prendre ~40 s, on laisse de la marge).
     const safety = setTimeout(() => {
       clearInterval(stepInterval);
       clearInterval(percentInterval);
@@ -108,7 +108,7 @@ export default function Scan() {
       setError("L'analyse a mis trop de temps. Réessaie (et vérifie ta connexion).");
       setStep("manque");
       analysisDone.current = false;
-    }, 50_000);
+    }, 62_000);
 
     async function runAnalysis() {
       try {
@@ -138,7 +138,7 @@ export default function Scan() {
         // affiche une erreur claire au lieu de figer la barre.
         trackEvent("scan_api_sent");
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 45_000);
+        const timeoutId = setTimeout(() => controller.abort(), 58_000);
         let res: Response;
         try {
           res = await fetch("/api/scan", {

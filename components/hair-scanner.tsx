@@ -26,6 +26,11 @@ const FACE_DETECT_INTERVAL = 90;
 const GRACE_PERIOD_MS = 1500;
 // Au-dela, on considere que la detection galere et on pousse le bouton manuel.
 const STRUGGLE_MS = 9000;
+// Nettete MINIMALE en direct (variance du Laplacien, mesuree sur ~200px) pour
+// AUTORISER le compte a rebours. En dessous = image floue OU qui bouge -> on
+// n'enclenche PAS la prise (on guide "tiens stable"). Garde-fou volontairement
+// modere : il bloque le flou franc, le controle final (assessQuality) tranche.
+const LIVE_SHARP_MIN = 45;
 
 type Props = {
   onAllCaptured: (photos: string[], masks: string[]) => void;
@@ -154,6 +159,29 @@ function frameBrightness(video: HTMLVideoElement, canvas: HTMLCanvasElement): nu
   return sum / (d.length / 4);
 }
 
+// Nettete EN DIRECT (variance du Laplacien sur un downscale ~200px) : sert a
+// n'autoriser la prise auto QUE quand l'image est nette ET stable. Une image qui
+// bouge est floue -> faible variance -> on attend. Cout negligeable a 200px.
+function frameSharpness(video: HTMLVideoElement, canvas: HTMLCanvasElement): number {
+  const w = 200;
+  const h = Math.max(1, Math.round((w * video.videoHeight) / video.videoWidth));
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return 999;
+  ctx.drawImage(video, 0, 0, w, h);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  const g = new Float32Array(w * h);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) g[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  let sum = 0, sum2 = 0, n = 0;
+  for (let y = 1; y < h - 1; y++)
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const L = 4 * g[i] - g[i - 1] - g[i + 1] - g[i - w] - g[i + w];
+      sum += L; sum2 += L * L; n++;
+    }
+  return sum2 / n - (sum / n) * (sum / n);
+}
+
 // Message clair selon la vraie cause de l'echec camera (err.name, jamais le message).
 // Chaque cause appelle une action differente : on ne laisse jamais un ecran muet.
 function cameraErrorMessage(err: unknown): { title: string; hint: string } {
@@ -210,6 +238,10 @@ export default function HairScanner({ onAllCaptured }: Props) {
   const lightCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const lightTimeRef = useRef(0);
   const lightMsgRef = useRef("");
+  // Nettete en direct : echantillonnee toutes ~220ms, sert a gater la prise auto.
+  const sharpCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const sharpTimeRef = useRef(0);
+  const liveSharpRef = useRef(0);
   // Throttle de la segmentation : on plafonne a ~25 traitements/s. Le rendu reste
   // fluide a l'oeil mais on divise le cout CPU (cle quand la camera est en haute
   // resolution : sinon on boucle sur 1,5M de pixels 30x/s).
@@ -458,6 +490,15 @@ export default function HairScanner({ onAllCaptured }: Props) {
             msg = "Recule pour cadrer toute ta tête, puis appuie";
           }
 
+          // NETTETÉ + STABILITÉ en direct : le cadrage est bon, mais on ne lance le
+          // compte à rebours QUE si l'image est nette (une image qui bouge est floue
+          // -> faible netteté -> on attend). C'est ça "ne pas prendre tant que c'est
+          // pas bon" : on ne capture jamais une photo floue qui serait refusée après.
+          if (ready && liveSharpRef.current > 0 && liveSharpRef.current < LIVE_SHARP_MIN) {
+            msg = "Tiens bien stable, l'image se précise";
+            ready = false;
+          }
+
           // La lumière ne s'affiche QUE si le cadrage est déjà bon. Sinon le vrai
           // problème c'est le placement du visage ("centre ton visage") -> on le
           // garde en priorité, on n'écrase pas le bon message par la lumière.
@@ -491,6 +532,15 @@ export default function HairScanner({ onAllCaptured }: Props) {
         // frame skip
       }
       } // fin throttle segmentation
+
+      // Echantillon nettete en direct (throttle ~220ms) : pilote l'autorisation
+      // de la prise auto (on ne capture pas une image floue/qui bouge).
+      if (now - sharpTimeRef.current > 220) {
+        sharpTimeRef.current = now;
+        if (!sharpCanvasRef.current) sharpCanvasRef.current = document.createElement("canvas");
+        try { liveSharpRef.current = frameSharpness(video, sharpCanvasRef.current); }
+        catch { liveSharpRef.current = 999; }
+      }
 
       // Echantillon lumiere en direct (throttle ~600ms, cout negligeable)
       if (now - lightTimeRef.current > 600) {
