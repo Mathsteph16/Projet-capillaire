@@ -4,6 +4,7 @@ import Link from "next/link";
 import Nav from "@/components/nav";
 import MobileNav from "@/components/mobile-nav";
 import { ToastProvider } from "@/components/toast";
+import VersionGuard from "@/components/version-guard";
 import "./globals.css";
 
 // Corps : Inter, lisible et neutre, le confort de lecture
@@ -92,6 +93,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://storage.googleapis.com" crossOrigin="anonymous" />
       </head>
       <body className="flex min-h-full flex-col font-sans pb-16 sm:pb-0">
+        <VersionGuard />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

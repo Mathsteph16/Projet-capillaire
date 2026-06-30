@@ -5,14 +5,15 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
 import { compressImage } from "@/lib/compress-image";
+import { APP_VERSION } from "@/lib/version";
 import { Button, Card, Disclaimer, Checkbox } from "@/components/ui";
 import dynamic from "next/dynamic";
 
 const HairScanner = dynamic(() => import("@/components/hair-scanner"), { ssr: false });
 
-// Marqueur de version : permet de voir d'un coup d'oeil si le navigateur a bien
-// chargé le code à jour (sinon = cache navigateur, il faut recharger en dur).
-const BUILD = "v3-23h55";
+// Marqueur de version (centralisé dans lib/version) : visible sur l'écran d'analyse
+// pour confirmer d'un coup d'oeil que le navigateur a le code à jour.
+const BUILD = APP_VERSION;
 
 type ScanStep = "manque" | "choix" | "capture" | "processing" | "bilan";
 
