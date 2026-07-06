@@ -10,8 +10,8 @@ function Stepper({ total, current, className = "" }: StepperProps) {
       {Array.from({ length: total }, (_, i) => (
         <div
           key={i}
-          className={`h-1.5 flex-1 rounded-full transition-colors duration-250 ${
-            i < current ? "bg-accent" : i === current ? "bg-accent/50" : "bg-border"
+          className={`h-1.5 flex-1 rounded-full transition-colors duration-[var(--dur)] ${
+            i < current ? "bg-accent" : i === current ? "bg-accent/50" : "bg-surface-2"
           }`}
         />
       ))}

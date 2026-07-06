@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { Card, Badge, Button, Gauge } from "@/components/ui";
+import { Card, Badge, Button, Gauge, ScoreMark, TrendChart } from "@/components/ui";
 
 interface Scan {
   id: string;
@@ -19,7 +19,8 @@ export default function Suivi() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const user = session?.user;
       if (!user) { setLoading(false); return; }
       const { data } = await supabase
         .from("scans")
@@ -33,8 +34,9 @@ export default function Suivi() {
 
   if (loading) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
+      <main className="flex flex-1 flex-col items-center justify-center gap-4">
+        <ScoreMark size={44} spin value={0.7} />
+        <p className="font-data text-xs uppercase tracking-[0.2em] text-text-faint">Chargement</p>
       </main>
     );
   }
@@ -107,22 +109,14 @@ export default function Suivi() {
             {/* Chart */}
             <Card>
               <h2 className="mb-4 text-[17px] font-semibold text-text">
-                Évolution du score
+                Ta courbe de densité
               </h2>
-              <div className="flex items-end gap-2 h-32">
-                {scans.map((scan) => (
-                  <div key={scan.id} className="flex flex-1 flex-col items-center gap-1">
-                    <span className="font-data text-xs text-text-faint">{scan.score}</span>
-                    <div
-                      className="w-full rounded-t-[8px] bg-accent"
-                      style={{ height: `${(scan.score / 100) * 100}%` }}
-                    />
-                    <span className="text-[10px] text-text-faint">
-                      {new Date(scan.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <TrendChart
+                points={scans.map((scan) => ({
+                  score: scan.score,
+                  label: new Date(scan.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }),
+                }))}
+              />
             </Card>
 
             <Link href="/scan">

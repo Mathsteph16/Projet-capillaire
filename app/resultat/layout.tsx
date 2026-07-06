@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Ton résultat — Scalpy",
+  title: "Ton résultat · Scalpy",
   description: "Score de densité, stade Norwood et zones à surveiller.",
 };
 

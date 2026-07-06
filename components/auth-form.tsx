@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
 import { Button, Input } from "@/components/ui";
@@ -39,7 +38,6 @@ export default function AuthForm({
   const [isSuccess, setIsSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const router = useRouter();
 
   async function handleForgot(e: React.FormEvent) {
     e.preventDefault();
@@ -60,13 +58,18 @@ export default function AuthForm({
   }
 
   async function handleGoogle() {
-    const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${location.origin}/auth/callback?next=${redirectTo}`,
-      },
-    });
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${location.origin}/auth/callback?next=${redirectTo}`,
+        },
+      });
+      if (error) setMessage("La connexion Google a échoué. Réessaie.");
+    } catch {
+      setMessage("La connexion Google a échoué. Réessaie.");
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -77,40 +80,75 @@ export default function AuthForm({
 
     const supabase = createClient();
 
-    if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: `${location.origin}/auth/confirm` },
-      });
-      if (error) {
-        setMessage(humanError(error.message));
-      } else {
-        trackEvent("inscription");
-        setIsSuccess(true);
-        if (onSuccess) {
-          onSuccess();
+    try {
+      if (mode === "signup") {
+        // Compte créé sans confirmation d'email (zéro friction), puis connexion directe.
+        const res = await fetch("/api/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+          signal: AbortSignal.timeout(12000), // jamais de spinner infini
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setMessage(humanError(data.error || "Inscription impossible."));
+        } else if (data.signedIn) {
+          // RAPIDE : la session est DÉJÀ posée côté serveur (cookie) -> on navigue
+          // direct, sans le signInWithPassword navigateur qui traînait ~8s.
+          trackEvent("inscription");
+          setIsSuccess(true);
+          if (onSuccess) onSuccess();
+          else window.location.assign(redirectTo);
         } else {
-          setMessage("Vérifie ta boîte mail pour confirmer ton inscription.");
+          // Filet : la connexion serveur a échoué -> on la refait côté client,
+          // avec timeout 12s pour ne jamais rester bloqué.
+          const signIn = supabase.auth.signInWithPassword({ email, password });
+          const timeout = new Promise<{ error: { message: string } | null }>((resolve) =>
+            setTimeout(() => resolve({ error: { message: "__timeout__" } }), 12000)
+          );
+          const { error: signInError } = (await Promise.race([signIn, timeout])) as { error: { message: string } | null };
+          if (signInError && signInError.message === "__timeout__") {
+            // Le compte EST créé, mais la connexion auto traîne. On NE navigue PAS
+            // (sans session, /scan rebondirait vers /auth, l'utilisateur perdu).
+            // On bascule en connexion manuelle avec un message clair.
+            setMode("login");
+            setIsSuccess(true);
+            setMessage("Compte créé ! Connecte-toi pour continuer.");
+          } else if (signInError) {
+            setMessage(humanError(signInError.message));
+          } else {
+            trackEvent("inscription");
+            setIsSuccess(true);
+            if (onSuccess) onSuccess();
+            else window.location.assign(redirectTo);
+          }
+        }
+      } else {
+        // Connexion CÔTÉ SERVEUR (rapide) : pose le cookie de session, pas de
+        // signInWithPassword navigateur lent.
+        const res = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+          signal: AbortSignal.timeout(12000), // jamais de spinner infini
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setMessage(humanError(data.error || "Email ou mot de passe incorrect."));
+        } else {
+          if (onSuccess) {
+            onSuccess();
+          } else {
+            window.location.assign(redirectTo);
+          }
         }
       }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) {
-        setMessage(humanError(error.message));
-      } else {
-        if (onSuccess) {
-          onSuccess();
-        } else {
-          router.push(redirectTo);
-        }
-      }
+    } catch {
+      // Reseau coupe : on le DIT, et le bouton ne reste jamais bloque.
+      setMessage("Connexion interrompue. Vérifie ta connexion et réessaie.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   if (mode === "forgot") {

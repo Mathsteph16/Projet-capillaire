@@ -5,18 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
-import { Button, Card, Gauge, ProgressBar, Badge, Disclaimer } from "@/components/ui";
+import { Button, Card, ProgressBar, Badge, Disclaimer, ScoreMark, TrendChart } from "@/components/ui";
 
 interface ScanHistory {
   id: string;
   score: number;
   norwood: string;
   created_at: string;
-}
-
-interface ProjectionData {
-  originalUrl: string | null;
-  fullUrl: string | null;
 }
 
 interface QuizAnswers {
@@ -70,7 +65,6 @@ export default function AppPage() {
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
   const [taskDates, setTaskDates] = useState<Map<string, string>>(new Map());
   const [currentDay, setCurrentDay] = useState(1);
-  const [projection, setProjection] = useState<ProjectionData>({ originalUrl: null, fullUrl: null });
   const [programWeeks, setProgramWeeks] = useState(DEFAULT_WEEKS);
   const [marketingConsent, setMarketingConsent] = useState(true);
   const router = useRouter();
@@ -79,7 +73,8 @@ export default function AppPage() {
     trackEvent("app_viewed");
 
     const supabase = createClient();
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const user = session?.user;
       if (!user) { router.push("/auth"); return; }
 
       // Check subscription
@@ -96,57 +91,34 @@ export default function AppPage() {
 
       setSubscribed(true);
 
-      // Load marketing consent
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("marketing_consent")
-        .eq("id", user.id)
-        .single();
-      if (profile) setMarketingConsent(profile.marketing_consent ?? true);
-
       // Calculate current day
       const start = new Date(sub.created_at);
       const now = new Date();
       const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
       setCurrentDay(Math.min(diff + 1, 30));
 
-      // Load scan history
-      const { data: scanData } = await supabase
-        .from("scans")
-        .select("id, score, norwood, created_at")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true });
+      // Tout le reste ne depend que de user.id -> en PARALLELE (au lieu de 5
+      // requetes en cascade). Les recommandations sont recuperees DANS scans
+      // (plus de requete dediee). Gros gain au chargement de l'espace.
+      const [profileRes, scanRes, onbRes, progressRes] = await Promise.all([
+        supabase.from("profiles").select("marketing_consent").eq("id", user.id).single(),
+        supabase.from("scans").select("id, score, norwood, created_at, recommendations").eq("user_id", user.id).order("created_at", { ascending: true }),
+        supabase.from("onboarding_responses").select("answers").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).single(),
+        supabase.from("program_progress").select("task_id, created_at").eq("user_id", user.id).eq("done", true),
+      ]);
 
+      if (profileRes.data) setMarketingConsent(profileRes.data.marketing_consent ?? true);
+
+      const scanData = scanRes.data;
       if (scanData) setScans(scanData);
 
-      // Load quiz answers for personalization
-      const { data: onb } = await supabase
-        .from("onboarding_responses")
-        .select("answers")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      const quizAnswers: QuizAnswers = onb?.answers ?? {};
+      const quizAnswers: QuizAnswers = onbRes.data?.answers ?? {};
       const latestRecs: string[] = scanData?.length
-        ? (await supabase
-            .from("scans")
-            .select("recommendations")
-            .eq("id", scanData[scanData.length - 1].id)
-            .single()
-          ).data?.recommendations ?? []
+        ? (scanData[scanData.length - 1].recommendations ?? [])
         : [];
-
       setProgramWeeks(buildPersonalizedProgram(quizAnswers, latestRecs));
 
-      // Load progress
-      const { data: progress } = await supabase
-        .from("program_progress")
-        .select("task_id, created_at")
-        .eq("user_id", user.id)
-        .eq("done", true);
-
+      const progress = progressRes.data;
       if (progress) {
         setCompletedTasks(new Set(progress.map((p: { task_id: string }) => p.task_id)));
         const dates = new Map<string, string>();
@@ -156,48 +128,15 @@ export default function AppPage() {
         setTaskDates(dates);
       }
 
-      // Load projection for latest scan
-      if (scanData && scanData.length > 0) {
-        const latestScan = scanData[scanData.length - 1];
-        const { data: proj } = await supabase
-          .from("projections")
-          .select("full_path, status")
-          .eq("scan_id", latestScan.id)
-          .eq("user_id", user.id)
-          .single();
-
-        if (proj?.status === "done" && proj.full_path) {
-          const { data: fullUrl } = await supabase.storage
-            .from("projections")
-            .createSignedUrl(proj.full_path, 3600);
-
-          const { data: scanRow } = await supabase
-            .from("scans")
-            .select("photo_path")
-            .eq("id", latestScan.id)
-            .single();
-
-          let origUrl = null;
-          if (scanRow?.photo_path) {
-            const { data: oUrl } = await supabase.storage
-              .from("scalp-photos")
-              .createSignedUrl(scanRow.photo_path, 3600);
-            origUrl = oUrl?.signedUrl ?? null;
-          }
-
-          setProjection({
-            originalUrl: origUrl,
-            fullUrl: fullUrl?.signedUrl ?? null,
-          });
-        }
-      }
+      // (Plus de projection avant/après : techno abandonnée. On ne charge plus rien.)
     });
   }, [router]);
 
   if (subscribed === null) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
+      <main className="flex flex-1 flex-col items-center justify-center gap-4">
+        <ScoreMark size={44} spin value={0.7} />
+        <p className="font-data text-xs uppercase tracking-[0.2em] text-text-faint">Chargement</p>
       </main>
     );
   }
@@ -226,7 +165,8 @@ export default function AppPage() {
 
   async function toggleTask(taskId: string) {
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return;
 
     const newCompleted = new Set(completedTasks);
@@ -247,7 +187,7 @@ export default function AppPage() {
         <div>
           <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">Ton espace</h1>
           <p className="text-sm text-text-muted">
-            Jour {currentDay}/30 — Semaine {currentWeek}
+            Jour {currentDay}/30 · Semaine {currentWeek}
           </p>
         </div>
 
@@ -268,41 +208,6 @@ export default function AppPage() {
         </div>
 
         <ProgressBar value={progressPercent} />
-
-        {/* Projection (pour abonnés) */}
-        {projection.fullUrl && (
-          <Card>
-            <h2 className="mb-4 text-[17px] font-semibold text-text">
-              Ta projection
-            </h2>
-            <div className="grid grid-cols-2 gap-3">
-              {projection.originalUrl && (
-                <div>
-                  <img src={projection.originalUrl} alt="Avant" className="rounded-[12px] w-full" />
-                  <p className="mt-1 text-center text-xs text-text-faint">Avant</p>
-                </div>
-              )}
-              <div>
-                <img src={projection.fullUrl} alt="Objectif" className="rounded-[12px] w-full" />
-                <p className="mt-1 text-center text-xs text-text-faint">Objectif</p>
-              </div>
-            </div>
-            <p className="mt-3 text-xs text-signal text-center">
-              Simulation — objectif visuel, pas une prédiction
-            </p>
-            <a
-              href={projection.fullUrl}
-              download="scalpy-projection.jpg"
-              className="mt-3 flex items-center justify-center gap-2 rounded-[12px] border border-border py-2 text-sm text-text-muted hover:text-text transition-colors"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-              </svg>
-              Télécharger
-            </a>
-            <Disclaimer className="mt-3 justify-center" />
-          </Card>
-        )}
 
         {/* Programme hebdo */}
         <Card>
@@ -330,7 +235,7 @@ export default function AppPage() {
                     done ? "border-accent bg-accent" : "border-border"
                   }`}>
                     {done && (
-                      <svg className="h-3 w-3 text-[#06231A]" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                      <svg className="h-3 w-3 text-accent-foreground" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                       </svg>
                     )}
@@ -351,28 +256,20 @@ export default function AppPage() {
         {/* Courbe d'évolution */}
         <Card>
           <h2 className="mb-4 text-[17px] font-semibold text-text">
-            Évolution du score
+            Ta courbe de densité
           </h2>
           {scans.length >= 2 ? (
-            <div className="flex items-end gap-2 h-32">
-              {scans.map((scan, i) => (
-                <div key={scan.id} className="flex flex-1 flex-col items-center gap-1">
-                  <span className="font-data text-xs text-text-faint">{scan.score}</span>
-                  <div
-                    className="w-full rounded-t-[8px] bg-accent transition-all"
-                    style={{ height: `${(scan.score / 100) * 100}%` }}
-                  />
-                  <span className="text-[10px] text-text-faint">
-                    {new Date(scan.created_at).toLocaleDateString("fr-FR", { month: "short" })}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <TrendChart
+              points={scans.map((scan) => ({
+                score: scan.score,
+                label: new Date(scan.created_at).toLocaleDateString("fr-FR", { month: "short" }),
+              }))}
+            />
           ) : (
             <p className="text-sm text-text-muted">
-              Fais ton premier re-scan dans {nextRescanDate
+              Re-scanne dans {nextRescanDate
                 ? Math.max(0, Math.ceil((nextRescanDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-                : 30} jours pour voir ta courbe apparaitre.
+                : 30} jours pour voir ta courbe se tracer.
             </p>
           )}
         </Card>
@@ -447,7 +344,8 @@ export default function AppPage() {
                 const next = !marketingConsent;
                 setMarketingConsent(next);
                 const supabase = createClient();
-                const { data: { user } } = await supabase.auth.getUser();
+                const { data: { session } } = await supabase.auth.getSession();
+                const user = session?.user;
                 if (user) {
                   await supabase.from("profiles").update({ marketing_consent: next }).eq("id", user.id);
                 }

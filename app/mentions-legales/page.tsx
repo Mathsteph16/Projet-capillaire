@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Mentions légales — Scalpy",
+  title: "Mentions légales · Scalpy",
 };
 
 export default function MentionsLegales() {
@@ -41,7 +41,7 @@ export default function MentionsLegales() {
           </h2>
           <p>
             Scalpy propose une estimation de bien-être capillaire basée sur
-            l'analyse visuelle par intelligence artificielle. Les résultats
+            l'analyse visuelle automatisée. Les résultats
             fournis (score de densité, stade Norwood, recommandations) sont
             purement indicatifs et ne constituent en aucun cas un diagnostic
             médical, un avis dermatologique, ni une prescription de traitement.

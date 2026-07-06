@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasActiveSubscription } from "@/lib/subscriptions";
 
 export const metadata: Metadata = {
-  title: "Suivi de repousse — Scalpy",
+  title: "Suivi de repousse · Scalpy",
   description: "Suis l'évolution de ton score de densité mois après mois.",
 };
 

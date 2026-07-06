@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Conditions générales d'utilisation — Scalpy",
+  title: "Conditions générales d'utilisation · Scalpy",
 };
 
 export default function CGU() {
@@ -19,8 +19,7 @@ export default function CGU() {
           </h2>
           <p>
             Les présentes conditions régissent l'utilisation du service Scalpy,
-            accessible à l'adresse
-            projet-capillaire-production.up.railway.app. En utilisant le
+            accessible à l'adresse www.scalpy-app.com. En utilisant le
             service, tu acceptes ces conditions dans leur intégralité.
           </p>
         </section>
@@ -31,7 +30,7 @@ export default function CGU() {
           </h2>
           <p>
             Scalpy propose une estimation de bien-être capillaire basée sur
-            l'analyse visuelle par intelligence artificielle. Le service
+            l'analyse visuelle automatisée. Le service
             comprend : un scan capillaire (score de densité, stade Norwood,
             zones concernées), des recommandations de bien-être, et un suivi
             dans le temps.

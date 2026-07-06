@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
-import { Gauge, Card, Button, Disclaimer, Badge, ImageSlider } from "@/components/ui";
+import { Gauge, Card, Button, Badge, ScoreMark } from "@/components/ui";
 
 interface ScanResult {
   usable: boolean;
@@ -71,12 +71,9 @@ function ScalpMap({ zones }: { zones: string[] }) {
 
 export default function Resultat() {
   const [result, setResult] = useState<ScanResult | null>(null);
-  const [teaserUrl, setTeaserUrl] = useState<string | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
-  const [fullProjectionUrl, setFullProjectionUrl] = useState<string | null>(null);
   const [objectif, setObjectif] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [projectionLoading, setProjectionLoading] = useState(true);
 
   useEffect(() => {
     trackEvent("result_viewed");
@@ -87,39 +84,15 @@ export default function Resultat() {
 
     const supabase = createClient();
 
-    async function loadProjection(userId: string, scanId: string) {
-      // Server-side projection overrides client-side if available
-      const { data: proj } = await supabase
-        .from("projections")
-        .select("teaser_path, full_path, status")
-        .eq("user_id", userId)
-        .eq("scan_id", scanId)
-        .single();
-
-      if (proj?.status === "done") {
-        if (proj.teaser_path) {
-          const { data: url } = await supabase.storage
-            .from("projections")
-            .createSignedUrl(proj.teaser_path, 3600);
-          if (url?.signedUrl) setTeaserUrl(url.signedUrl);
-        }
-        if (proj.full_path) {
-          const { data: url } = await supabase.storage
-            .from("projections")
-            .createSignedUrl(proj.full_path, 3600);
-          if (url?.signedUrl) setFullProjectionUrl(url.signedUrl);
-        }
-      }
-
-      const photoPath = sessionStorage.getItem("scanPhotoPath");
-      if (photoPath) {
-        const { data: origUrl } = await supabase.storage
-          .from("scalp-photos")
-          .createSignedUrl(photoPath, 3600);
-        if (origUrl?.signedUrl) setOriginalUrl(origUrl.signedUrl);
-      }
-
-      setProjectionLoading(false);
+    // On affiche la VRAIE photo du scan (pas d'avant/après simulé). En direct après
+    // le scan elle est déjà en sessionStorage (instantané) ; après un refresh on la
+    // recharge depuis le storage via le chemin enregistré au moment du scan.
+    async function loadPhoto(photoPath?: string) {
+      if (sessionStorage.getItem("portraitPhoto") || !photoPath) return;
+      const { data: url } = await supabase.storage
+        .from("scalp-photos")
+        .createSignedUrl(photoPath, 3600);
+      if (url?.signedUrl) setOriginalUrl(url.signedUrl);
     }
 
     async function loadObjectif(userId: string) {
@@ -135,23 +108,34 @@ export default function Resultat() {
       }
     }
 
+    // Filet anti spinner-infini : quoi qu'il arrive (auth qui traîne, requête qui
+    // échoue), on sort toujours de l'écran de chargement au bout de 8 s.
+    const safety = setTimeout(() => setLoading(false), 8000);
+
     const cached = sessionStorage.getItem("scanResult");
     if (cached) {
-      const parsed = JSON.parse(cached);
-      setResult(parsed);
-      setLoading(false);
-
-      supabase.auth.getUser().then(({ data: { user } }) => {
-        if (user) {
-          if (parsed.scanId) loadProjection(user.id, parsed.scanId);
-          loadObjectif(user.id);
-        }
-      });
-      return;
+      try {
+        const parsed = JSON.parse(cached);
+        setResult(parsed);
+        setLoading(false);
+        clearTimeout(safety);
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          const user = session?.user;
+          if (user) {
+            loadPhoto(parsed.photoPath);
+            loadObjectif(user.id);
+          }
+        }).catch(() => {});
+        return;
+      } catch {
+        // sessionStorage corrompu : on l'ignore et on charge depuis la base.
+        sessionStorage.removeItem("scanResult");
+      }
     }
 
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { setLoading(false); setProjectionLoading(false); return; }
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const user = session?.user;
+      if (!user) { setLoading(false); return; }
       const { data } = await supabase
         .from("scans")
         .select("*")
@@ -171,19 +155,21 @@ export default function Resultat() {
           confidence: "medium",
           scanId: data.id,
         });
-        loadProjection(user.id, data.id);
-      } else {
-        setProjectionLoading(false);
+        loadPhoto(data.photo_path);
       }
       loadObjectif(user.id);
       setLoading(false);
-    });
+      clearTimeout(safety);
+    }).catch(() => setLoading(false));
+
+    return () => clearTimeout(safety);
   }, []);
 
   if (loading) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center px-4">
-        <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+      <main className="flex flex-1 flex-col items-center justify-center gap-4 px-4">
+        <ScoreMark size={44} spin value={0.7} />
+        <p className="font-data text-xs uppercase tracking-[0.2em] text-text-faint">Mesure</p>
       </main>
     );
   }
@@ -192,7 +178,7 @@ export default function Resultat() {
     return (
       <main className="flex flex-1 flex-col items-center justify-center px-5">
         <p className="text-text-muted">{result?.message || "Aucun résultat disponible."}</p>
-        <Link href="/scan" className="mt-4 inline-block rounded-[12px] bg-accent px-6 py-3 text-sm font-semibold text-[#06231A]">
+        <Link href="/scan" className="mt-4 inline-block rounded-[var(--radius-md)] bg-accent px-6 py-3 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover">
           Faire un scan
         </Link>
       </main>
@@ -203,43 +189,28 @@ export default function Resultat() {
   horizonDate.setDate(horizonDate.getDate() + 84);
   const dateStr = horizonDate.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 
-  const hasProjection = originalUrl && (teaserUrl || fullProjectionUrl);
-
   return (
     <main className="flex flex-1 flex-col items-center px-5 py-10">
       <div className="w-full max-w-lg space-y-6 animate-fade-in">
 
-        {/* ─── HERO : Aperçu transformation ─── */}
+        {/* ─── EN-TÊTE : bilan honnête (on ne montre PAS d'avant/après irréaliste,
+            on ne peut pas promettre une repousse ; on situe et on propose un plan) ─── */}
         <div className="space-y-4">
           <div className="text-center">
             <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
-              Ton aperçu transformation
+              Voici où en sont tes cheveux
             </h1>
             <p className="mt-2 text-sm text-text-muted">
-              Découvre ce vers quoi tu peux tendre en prenant soin de tes cheveux.
+              Ton bilan complet ci-dessous. L'objectif : préserver et ralentir, avec un plan fait pour toi.
             </p>
           </div>
 
-          {hasProjection ? (
-            <ImageSlider
-              beforeSrc={originalUrl}
-              afterSrc={fullProjectionUrl || teaserUrl!}
-              beforeLabel="ACTUELLEMENT"
-              afterLabel="APRÈS 12 SEMAINES"
+          {originalUrl && (
+            <img
+              src={originalUrl}
+              alt="Ta photo de scan"
+              className="aspect-[3/4] w-full rounded-[16px] border border-border object-cover"
             />
-          ) : (
-            <div className="relative w-full overflow-hidden rounded-[16px] bg-surface-2 aspect-[3/4] flex items-center justify-center">
-              {projectionLoading ? (
-                <div className="flex flex-col items-center gap-3">
-                  <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-                  <p className="text-sm text-text-faint">Génération de ta projection...</p>
-                </div>
-              ) : (
-                <p className="text-sm text-text-faint px-8 text-center">
-                  Projection non disponible pour le moment.
-                </p>
-              )}
-            </div>
           )}
 
           {/* Carte objectif (style scoremax) */}
@@ -262,7 +233,7 @@ export default function Resultat() {
 
             <div className="flex items-center justify-between text-xs text-text-faint">
               <span>
-                Norwood {result.norwood || "?"} — Score {result.score}/100
+                Stade {result.norwood || "?"} · Score {result.score}/100
               </span>
               <span className="font-data font-medium">12 semaines</span>
             </div>
@@ -280,33 +251,48 @@ export default function Resultat() {
 
         {/* ─── BILAN DÉTAILLÉ ─── */}
 
-        {/* Score */}
-        <Card className="flex flex-col items-center">
-          <p className="mb-2 text-sm font-medium text-text-muted">Score de densité</p>
-          <Gauge score={result.score} />
-          {result.message && (
-            <p className="mt-3 text-center text-sm text-accent">{result.message}</p>
-          )}
-        </Card>
+        {/* Score (arrondi + fourchette, jamais de fausse precision) */}
+        {(() => {
+          const shown = Math.round(result.score! / 5) * 5;
+          const lo = Math.max(0, shown - 5);
+          const hi = Math.min(100, shown + 5);
+          return (
+            <Card className="flex flex-col items-center">
+              <p className="mb-2 text-sm font-medium text-text-muted">Score de densité</p>
+              <Gauge score={shown} />
+              <p className="mt-2 font-data text-xs text-text-faint">Estimation, fourchette {lo} à {hi}</p>
+              {result.message && (
+                <p className="mt-3 text-center text-sm text-accent">{result.message}</p>
+              )}
+            </Card>
+          );
+        })()}
 
         {/* Norwood */}
         {result.norwood && (
           <Card>
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-text-muted">Stade estimé</p>
+              <p className="text-sm font-medium text-text-muted">Ton stade de dégarnissement</p>
               <Badge variant="accent">{result.norwood}</Badge>
             </div>
             <p className="mt-3 text-sm text-text-muted">
               {NORWOOD_DESC[result.norwood] || "Stade estimé."}
             </p>
+            <p className="mt-2 text-xs text-text-faint">
+              C'est l'échelle de référence (I à VII) : de « aucun signe » à « avancé ». Tu es au stade {result.norwood}.
+            </p>
             <div className="mt-4 flex gap-1">
               {["I", "II", "III", "IV", "V", "VI", "VII"].map((s) => (
-                <div key={s} className={`flex h-8 flex-1 items-center justify-center rounded-[8px] font-data text-xs font-medium transition-all ${
-                  s === result.norwood ? "bg-accent text-[#06231A]" : "bg-border/50 text-text-faint"
+                <div key={s} className={`flex h-8 flex-1 items-center justify-center rounded-[var(--radius-sm)] font-data text-xs font-medium transition-all ${
+                  s === result.norwood ? "bg-accent text-accent-foreground shadow-[var(--shadow-accent-glow)]" : "bg-surface-2 text-text-faint"
                 }`}>
                   {s}
                 </div>
               ))}
+            </div>
+            <div className="mt-1.5 flex justify-between text-[10px] text-text-faint">
+              <span>aucun signe</span>
+              <span>avancé</span>
             </div>
           </Card>
         )}
@@ -321,6 +307,9 @@ export default function Resultat() {
                 <Badge key={z} variant="signal">{z}</Badge>
               ))}
             </div>
+            <p className="mt-3 text-center text-xs text-text-faint">
+              Golfes = les coins du front · Vertex / couronne = le sommet du crâne · Ligne frontale = le devant
+            </p>
           </Card>
         )}
 
@@ -328,7 +317,7 @@ export default function Resultat() {
         {result.recommendations.length > 0 && (
           <Card>
             <p className="mb-4 text-sm font-medium text-text-muted">
-              Ton protocole personnalisé
+              Ton plan personnalisé
             </p>
             <div className="space-y-3">
               {result.recommendations.slice(0, 2).map((rec, i) => (
@@ -339,14 +328,32 @@ export default function Resultat() {
                   <p className="text-sm text-text">{rec}</p>
                 </div>
               ))}
+              {/* Teaser : on montre qu'il reste du plan a debloquer (desir). */}
+              <div className="flex items-center gap-3 rounded-[12px] border border-dashed border-accent/40 bg-accent-soft/40 p-3">
+                <svg className="h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+                <p className="text-sm text-text-muted">
+                  <span className="font-medium text-text">Ton plan complet, semaine par semaine</span>, débloqué dans Plus
+                </p>
+              </div>
             </div>
           </Card>
         )}
 
-        {/* CTA */}
-        <Link href="/plus" onClick={() => trackEvent("unlock_click")}>
-          <Button variant="primary" size="lg">Continuer</Button>
-        </Link>
+        {/* CTA conversion : on relie le déblocage au résultat qu'il vient de voir. */}
+        <div className="space-y-2.5 rounded-[16px] border border-accent/30 bg-accent-soft/30 p-4 text-center">
+          <p className="text-[15px] font-semibold text-text">
+            Tu sais où tu vas. Voici comment y arriver.
+          </p>
+          <p className="text-xs leading-relaxed text-text-muted">
+            Ton plan complet pour {objectif || "avancer"}, semaine par semaine, et ton suivi mois après mois pour voir ta courbe bouger.
+          </p>
+          <Link href="/plus" onClick={() => trackEvent("unlock_click")} className="block">
+            <Button variant="primary" size="lg" className="w-full">Démarrer mon plan</Button>
+          </Link>
+          <p className="text-[11px] text-text-faint">Satisfait ou remboursé, sans condition</p>
+        </div>
 
         {/* Actions */}
         <div className="flex gap-3">
@@ -357,8 +364,6 @@ export default function Resultat() {
             <Button variant="ghost" size="md" className="w-full">Mon suivi</Button>
           </Link>
         </div>
-
-        <Disclaimer className="justify-center" />
       </div>
     </main>
   );

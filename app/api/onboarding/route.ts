@@ -6,6 +6,19 @@ import { trackEventServer } from "@/lib/track-server";
 export async function POST(req: Request) {
   try {
     const { answers, step } = await req.json();
+
+    // Validation : answers doit être un objet simple et borné (pas de payload
+    // géant ni de type inattendu qui pollueraient la base ou les emails).
+    if (
+      typeof answers !== "object" ||
+      answers === null ||
+      Array.isArray(answers) ||
+      Object.keys(answers).length > 30 ||
+      JSON.stringify(answers).length > 4000
+    ) {
+      return NextResponse.json({ error: "Réponses invalides" }, { status: 400 });
+    }
+
     const cookieStore = await cookies();
     let sessionId = cookieStore.get("scalpy_sid")?.value;
 

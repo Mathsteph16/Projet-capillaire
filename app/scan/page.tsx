@@ -4,23 +4,29 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
-import { Button, Card, Disclaimer } from "@/components/ui";
+import { compressImage } from "@/lib/compress-image";
+import { APP_VERSION } from "@/lib/version";
+import { Button, Card } from "@/components/ui";
 import dynamic from "next/dynamic";
 
 const HairScanner = dynamic(() => import("@/components/hair-scanner"), { ssr: false });
 
+// Marqueur de version (centralisé dans lib/version) : visible sur l'écran d'analyse
+// pour confirmer d'un coup d'oeil que le navigateur a le code à jour.
+const BUILD = APP_VERSION;
+
 type ScanStep = "manque" | "choix" | "capture" | "processing" | "bilan";
 
 const ANALYSIS_STEPS = [
-  "Détection de la zone capillaire",
-  "Stabilisation pose et lumière",
-  "Segmentation des zones, front, milieu, couronne",
-  "Estimation de la densité par zone",
-  "Repérage de la ligne frontale",
-  "Analyse de la couronne",
-  "Estimation du stade, échelle Norwood",
-  "Calcul de l'indice de couverture",
-  "Génération de ton bilan",
+  "Repérage de tes cheveux",
+  "Vérification de la lumière et du cadrage",
+  "Découpage en zones (front, milieu, sommet)",
+  "Mesure de ta densité, zone par zone",
+  "Analyse de ta ligne frontale",
+  "Analyse du sommet du crâne",
+  "Estimation de ton stade",
+  "Calcul de ta couverture globale",
+  "Préparation de ton bilan",
 ];
 
 interface ScanResult {
@@ -46,16 +52,20 @@ export default function Scan() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) router.push("/auth?next=/scan");
+    trackEvent("scan_page_loaded", { build: BUILD });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) router.push("/auth?next=/scan");
     });
   }, [router]);
 
-  const handleAllCaptured = useCallback((capturedPhotos: string[]) => {
+  const handleAllCaptured = useCallback((capturedPhotos: string[], capturedMasks: string[]) => {
     setPhotos(capturedPhotos);
-    // Save portrait photo (3rd) for before/after slider
-    if (capturedPhotos[2]) {
-      sessionStorage.setItem("portraitPhoto", capturedPhotos[2]);
+    // La prise VISAGE (1re, de face) est l'avant : c'est la plus nette, la plus
+    // parlante (on s'identifie à son visage) et la zone de transformation la plus
+    // visible (ligne frontale, tempes). Son masque sert à l'inpainting.
+    if (capturedPhotos[0]) {
+      sessionStorage.setItem("portraitPhoto", capturedPhotos[0]);
+      sessionStorage.setItem("portraitMask", capturedMasks?.[0] || "");
     }
     trackEvent("scan_captured", { photos: capturedPhotos.length });
     setStep("processing");
@@ -66,68 +76,127 @@ export default function Scan() {
     if (step !== "processing" || analysisDone.current) return;
     analysisDone.current = true;
 
-    trackEvent("scan_started");
+    trackEvent("scan_started", { build: BUILD });
 
-    const stepInterval = setInterval(() => {
-      setAnalysisStep((s) => {
-        if (s < ANALYSIS_STEPS.length - 1) return s + 1;
-        clearInterval(stepInterval);
-        return s;
-      });
-    }, 1800);
+    // On garde stepInterval pour les clearInterval existants (l'étape est dérivée
+    // du pourcentage maintenant, plus de timer séparé désynchronisé).
+    const stepInterval = setInterval(() => {}, 100000);
 
+    // Progression ASYMPTOTIQUE qui ne stagne JAMAIS visuellement : elle s'approche
+    // de 95 % en ralentissant (rapide au début, lente vers la fin) -> même si
+    // l'analyse prend 40-50 s, la barre bouge toujours un peu, jamais "bloquée" à
+    // 95 %. Au résultat, remplissage rapide jusqu'à 100 %. Étape dérivée du %.
+    let progressTarget = 95;
+    let pct = 0;
     const percentInterval = setInterval(() => {
-      setAnalysisPercent((p) => {
-        if (p >= 95) { clearInterval(percentInterval); return p; }
-        return p + 1;
-      });
-    }, 150);
+      if (progressTarget >= 100) {
+        pct = pct + (100 - pct) * 0.25; // remplissage final rapide
+        if (pct >= 99.5) { pct = 100; clearInterval(percentInterval); }
+      } else {
+        pct = pct + (95 - pct) * 0.015; // approche douce de 95 %, ne stagne jamais
+      }
+      setAnalysisPercent(pct);
+      setAnalysisStep(Math.min(ANALYSIS_STEPS.length - 1, Math.floor((pct / 100) * ANALYSIS_STEPS.length)));
+    }, 90);
+
+    // FILET DE SÉCURITÉ GLOBAL : quoi qu'il arrive, l'écran d'analyse ne reste
+    // JAMAIS coincé. 62 s (l'analyse IA peut prendre ~40 s, on laisse de la marge).
+    const safety = setTimeout(() => {
+      clearInterval(stepInterval);
+      clearInterval(percentInterval);
+      trackEvent("scan_safety_timeout");
+      setError("L'analyse a mis trop de temps. Réessaie (et vérifie ta connexion).");
+      setStep("manque");
+      analysisDone.current = false;
+    }, 62_000);
 
     async function runAnalysis() {
       try {
+        trackEvent("scan_proc_start");
         const photoToSend = photos[0];
-        if (!photoToSend) return;
-        const blob = await fetch(photoToSend).then(r => r.blob());
-        const file = new File([blob], "scan.jpg", { type: "image/jpeg" });
+        if (!photoToSend) { trackEvent("scan_no_photo"); return; }
 
-        const supabase = createClient();
-        await supabase.from("profiles").upsert(
-          { id: (await supabase.auth.getUser()).data.user!.id, photo_consent_at: new Date().toISOString() },
-          { onConflict: "id" }
-        );
+        // 1 SEULE image (la face) envoyée à l'analyse : 2x plus rapide/léger qu'avec
+        // 2 images. En base64/JSON (le multipart/FormData casse sur ce déploiement).
+        const toDataUrl = (b: Blob) => new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result || ""));
+          r.onerror = () => reject(new Error("read"));
+          r.readAsDataURL(b);
+        });
+        const rawBlob = await fetch(photoToSend).then(r => r.blob());
+        const file = await compressImage(new File([rawBlob], "scan.jpg", { type: "image/jpeg" }));
+        const photoB64 = await toDataUrl(file);
+        trackEvent("scan_img_ready", { kb: Math.round(photoB64.length / 1024) });
 
-        const formData = new FormData();
-        formData.append("photo", file);
-        const res = await fetch("/api/scan", { method: "POST", body: formData });
-        const data = await res.json();
+        // (On n'appelle PLUS supabase.auth.getSession() ici : c'était LE point de
+        // blocage à 95 % — getSession pouvait pendre sur le verrou navigateur juste
+        // après l'inscription. Le serveur /api/scan identifie l'utilisateur via les
+        // cookies, on n'a besoin de rien côté client avant d'envoyer.)
+
+        // Timeout dur : l'analyse ne reste JAMAIS coincee. Au-dela de 45s on
+        // affiche une erreur claire au lieu de figer la barre.
+        trackEvent("scan_api_sent");
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 58_000);
+        let res: Response;
+        try {
+          res = await fetch("/api/scan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ photo: photoB64 }),
+            signal: controller.signal,
+          });
+        } catch {
+          trackEvent("scan_api_net_error");
+          clearTimeout(timeoutId);
+          clearInterval(stepInterval);
+          clearInterval(percentInterval);
+          setError("L'analyse a mis trop de temps. Vérifie ta connexion et réessaie.");
+          setStep("manque");
+          analysisDone.current = false;
+          return;
+        }
+        clearTimeout(timeoutId);
+        trackEvent("scan_api_got", { status: res.status });
+        if (!res.ok && res.status !== 200) {
+          clearInterval(stepInterval);
+          clearInterval(percentInterval);
+          trackEvent("scan_api_http_error", { status: res.status });
+          // 429 = trop de scans ; sinon erreur générique, jamais d'écran figé.
+          setError(res.status === 429
+            ? "Trop de scans en peu de temps. Réessaie dans une minute."
+            : "Le serveur n'a pas pu analyser la photo. Réessaie.");
+          setStep("manque");
+          analysisDone.current = false;
+          return;
+        }
+        const data = await res.json().catch(() => ({ error: "json" }));
 
         if (data.error || data.usable === false) {
           clearInterval(stepInterval);
           clearInterval(percentInterval);
+          trackEvent("scan_unusable", { reason: data.error ? "error" : "unusable" });
           setError(data.message || data.error || "Photo non exploitable. Réessaie avec plus de lumière.");
           setStep("manque");
           analysisDone.current = false;
           return;
         }
 
+        trackEvent("scan_usable_ok", { score: data.score });
         setResult(data);
-        setAnalysisPercent(100);
         setAnalysisStep(ANALYSIS_STEPS.length - 1);
+        progressTarget = 100; // declenche le remplissage fluide jusqu'a 100% pile
 
-        await new Promise(r => setTimeout(r, 1500));
+        // Laisse la barre finir son remplissage avant de devoiler le bilan.
+        await new Promise(r => setTimeout(r, 1200));
 
-        trackEvent("scan_completed", { score: data.score });
+        trackEvent("scan_reached_bilan", { score: data.score });
         sessionStorage.setItem("scanResult", JSON.stringify(data));
         if (data.photoPath) sessionStorage.setItem("scanPhotoPath", data.photoPath);
 
-        if (data.scanId && data.photoPath) {
-          fetch("/api/projection", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ scanId: data.scanId, photoPath: data.photoPath }),
-          }).catch(() => {});
-        }
-
+        // (Plus de génération d'image avant/après : on a abandonné cette techno,
+        // on affiche directement le bilan honnête + le plan.)
         setStep("bilan");
       } catch {
         clearInterval(stepInterval);
@@ -139,8 +208,19 @@ export default function Scan() {
     }
 
     runAnalysis();
-    return () => { clearInterval(stepInterval); clearInterval(percentInterval); };
+    return () => { clearInterval(stepInterval); clearInterval(percentInterval); clearTimeout(safety); };
   }, [step, photos]);
+
+  // Prefetch des modeles MediaPipe des l'ecran "choix" (l'utilisateur est sur le
+  // point de scanner) -> camera quasi instantanee ensuite, modeles deja en cache.
+  // URLs alignees sur components/hair-scanner.tsx (stables).
+  useEffect(() => {
+    if (step !== "choix") return;
+    [
+      "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite",
+      "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+    ].forEach((u) => { fetch(u, { cache: "force-cache" }).catch(() => {}); });
+  }, [step]);
 
   // ─── ÉCRAN 1 : Le manque ───
   if (step === "manque") {
@@ -148,10 +228,10 @@ export default function Scan() {
       <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
         <div className="w-full max-w-lg space-y-6 animate-fade-in">
           <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
-            Tu n'as jamais vraiment mesuré où en sont tes cheveux
+            Tu n'as jamais mesuré où en sont tes cheveux
           </h1>
           <p className="text-base text-text-muted">
-            Un miroir écrase le relief, une photo ment selon la lumière. Pour décider quoi faire, il te faut une mesure stable de ta densité et de tes zones, pas une impression. C'est ce qu'on va faire, en une photo.
+            Le miroir écrase le relief, une photo ment selon la lumière. Pour décider, il te faut une mesure stable de ta densité, pas une impression. On le fait en une photo.
           </p>
 
           {/* Visuel zones */}
@@ -182,10 +262,9 @@ export default function Scan() {
               setStep("choix");
             }}
           >
-            Continuer
+            Mesurer ma densité
           </Button>
 
-          <Disclaimer className="justify-center" />
         </div>
       </main>
     );
@@ -194,50 +273,51 @@ export default function Scan() {
   // ─── ÉCRAN 2 : Le choix cadré ───
   if (step === "choix") {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
-        <div className="w-full max-w-lg space-y-6 animate-fade-in">
-          <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
-            On passe à ton scan capillaire
+      <main className="flex flex-1 flex-col items-center justify-center px-5 py-5">
+        <div className="w-full max-w-lg space-y-4 animate-fade-in">
+          <h1 className="font-display text-[24px] font-semibold leading-[1.1] tracking-[-0.01em] text-text">
+            On passe à ton scan
           </h1>
-          <p className="text-base text-text-muted">
-            Ça prend une dizaine de secondes. Tes photos restent privées, et tu peux les supprimer quand tu veux.
+          <p className="text-sm text-text-muted">
+            Une dizaine de secondes. Tes photos restent privées, supprimables quand tu veux.
           </p>
 
-          <div className="grid grid-cols-2 gap-3">
-            {/* Carte rouge : photo simple */}
-            <Card className="border-danger/30 opacity-60">
-              <div className="flex items-center gap-2 mb-2">
-                <svg className="h-5 w-5 text-danger" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-                <span className="text-sm font-semibold text-text">Photo simple</span>
-              </div>
-              <p className="text-xs text-text-faint">Approximatif, dépend de la lumière.</p>
-            </Card>
-
-            {/* Carte verte : scan IA */}
-            <Card className="border-accent/40">
-              <div className="flex items-center gap-2 mb-2">
-                <svg className="h-5 w-5 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
-                <span className="text-sm font-semibold text-text">Scan IA</span>
-              </div>
-              <p className="text-xs text-text-faint">Mesure tes zones et estime ta densité.</p>
-            </Card>
-          </div>
-
+          {/* Mode d'emploi visuel : on montre les 2 prises AVANT d'ouvrir la
+              camera, pour que personne ne soit perdu (moins de bugs, plus rapide). */}
           <div className="rounded-[12px] border border-border bg-surface p-4">
-            <ol className="space-y-2 text-sm text-text-muted">
-              <li className="flex gap-2">
-                <span className="font-data font-medium text-accent">1.</span>
-                Autorise l'accès à la caméra.
-              </li>
-              <li className="flex gap-2">
-                <span className="font-data font-medium text-accent">2.</span>
-                Suis le guidage à l'écran.
-              </li>
-            </ol>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-faint">
+              2 prises rapides, l'écran te guide à chaque étape
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                {
+                  n: "1", label: "Visage", hint: "Visage droit, regarde la caméra",
+                  icon: (
+                    <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="24" cy="22" r="11" />
+                      <path d="M14 19q10 -7 20 0" />
+                      <path d="M24 40v-5" />
+                    </g>
+                  ),
+                },
+                {
+                  n: "2", label: "Dessus de la tête", hint: "Penche la tête vers l'avant",
+                  icon: (
+                    <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M13 30q11 -16 22 0" />
+                      <path d="M13 30q11 9 22 0" />
+                      <path d="M24 8v8m0 0l-4-4m4 4l4-4" />
+                    </g>
+                  ),
+                },
+              ].map((s) => (
+                <div key={s.n} className="flex flex-col items-center gap-1.5 rounded-[10px] bg-surface-2 p-2.5 text-center">
+                  <svg viewBox="0 0 48 48" className="h-10 w-10 text-accent" aria-hidden="true">{s.icon}</svg>
+                  <span className="text-xs font-semibold text-text">{s.n}. {s.label}</span>
+                  <span className="text-[11px] leading-tight text-text-faint">{s.hint}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           <Button
@@ -265,15 +345,9 @@ export default function Scan() {
   // ─── ÉCRAN 5 : Capture (face + sommet dans un seul composant) ───
   if (step === "capture") {
     return (
-      <main className="flex flex-1 flex-col items-center px-5 py-6">
-        <div className="w-full max-w-lg space-y-4 animate-fade-in">
-          <HairScanner
-            onAllCaptured={handleAllCaptured}
-            onError={() => {
-              setError("Impossible d'accéder à la caméra. Vérifie les permissions de ton navigateur.");
-              setStep("manque");
-            }}
-          />
+      <main className="flex flex-1 flex-col items-center justify-center px-5 py-3">
+        <div className="w-full max-w-lg space-y-3 animate-fade-in">
+          <HairScanner onAllCaptured={handleAllCaptured} />
 
           <button
             onClick={() => setStep("choix")}
@@ -292,7 +366,7 @@ export default function Scan() {
       <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
         <div className="w-full max-w-md space-y-8 animate-fade-in text-center">
           <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">
-            Analyse de ton cuir chevelu
+            Analyse de tes cheveux
           </h1>
 
           {/* Anneau circulaire */}
@@ -304,11 +378,11 @@ export default function Scan() {
                 fill="none" stroke="var(--accent)" strokeWidth="4"
                 strokeDasharray={`${analysisPercent * 2.76} 276`}
                 strokeLinecap="round"
-                className="transition-all duration-500"
+                className="transition-all duration-150 ease-linear"
               />
             </svg>
             <span className="absolute inset-0 flex items-center justify-center font-data text-[28px] font-medium text-text">
-              {analysisPercent}%
+              {Math.round(analysisPercent)}%
             </span>
           </div>
 
@@ -382,7 +456,7 @@ export default function Scan() {
           </div>
 
           <p className="text-center text-base text-text-muted">
-            Voyons où tu en es vraiment.
+            Voyons où tu en es.
           </p>
 
           <Button
@@ -390,10 +464,9 @@ export default function Scan() {
             size="lg"
             onClick={() => router.push("/resultat")}
           >
-            Continuer
+            Voir mon score
           </Button>
 
-          <Disclaimer className="justify-center" />
         </div>
       </main>
     );

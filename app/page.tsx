@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Gauge, Disclaimer } from "@/components/ui";
+import { Gauge, Reveal, ScoreMark } from "@/components/ui";
+import SmoothScroll from "@/components/smooth-scroll";
+import { HeroPreview } from "@/components/landing/hero-preview";
+import { DensityField } from "@/components/landing/density-field";
+import { TrustBar } from "@/components/landing/trust-bar";
+import { StatsBand } from "@/components/landing/stats-band";
+import { Reassurance } from "@/components/landing/reassurance";
+import { GradientBanner } from "@/components/landing/gradient-banner";
+import SiteFooter from "@/components/site-footer";
+import SocialProof from "@/components/social-proof";
 import { trackEvent } from "@/lib/track";
 import { useEffect, useState, useRef } from "react";
 
@@ -15,15 +24,15 @@ interface HeroVariant {
 const HERO_VARIANTS: HeroVariant[] = [
   {
     key: "A",
-    headline: "Scanne ton crâne. Sache où tu en es, et ce vers quoi tu peux tendre.",
-    sub: "Une photo, 30 secondes. Ton score de densité, tes zones fragiles, et un objectif visuel de ta densité retrouvée. Gratuit, sans clinique.",
+    headline: "Sache où en sont tes cheveux, et reprends le contrôle. En une photo.",
+    sub: "Ton score en 30 secondes, ton objectif sur ta propre photo, et le plan pour y arriver. Gratuit, sans carte.",
     cta: "Faire mon scan gratuit",
   },
   {
     key: "B",
-    headline: "Ta densité capillaire en 30 secondes. Score, zones, objectif visuel.",
-    sub: "Scanne ton cuir chevelu, reçois une analyse claire et un plan concret. Gratuit, privé, hébergé en Europe.",
-    cta: "Scanner maintenant",
+    headline: "Sache où en sont tes cheveux avant qu'il soit trop tard. Reprends le contrôle.",
+    sub: "Ton score en 30 secondes, ton objectif sur ta propre photo, et le plan pour y arriver. Gratuit, sans carte.",
+    cta: "Faire mon scan gratuit",
   },
 ];
 
@@ -43,7 +52,7 @@ function CtaButton({ className = "", variant }: { className?: string; variant?: 
     <Link
       href="/onboarding"
       onClick={() => trackEvent("cta_scan_click", variant ? { variant } : undefined)}
-      className={`inline-block rounded-[16px] bg-accent px-8 py-4 text-lg font-semibold text-[#06231A] shadow-[0_0_32px_rgba(22,185,129,0.15)] transition-all hover:bg-accent-hover hover:shadow-[0_0_48px_rgba(22,185,129,0.25)] ${className}`}
+      className={`inline-block rounded-[var(--radius-lg)] bg-accent px-8 py-4 text-lg font-semibold text-accent-foreground shadow-[var(--shadow-accent-glow)] transition-all duration-[var(--dur)] ease-[var(--ease-out)] hover:-translate-y-0.5 hover:bg-accent-hover active:translate-y-0 ${className}`}
     >
       {variant ? HERO_VARIANTS.find((v) => v.key === variant)?.cta ?? "Faire mon scan gratuit" : "Faire mon scan gratuit"}
     </Link>
@@ -67,11 +76,11 @@ function StickyCtaBar({ variant }: { variant?: string }) {
   if (!show) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-surface/95 p-3 backdrop-blur-md sm:hidden">
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-bg/95 p-3 sm:hidden">
       <Link
         href="/onboarding"
         onClick={() => trackEvent("cta_scan_click", variant ? { variant } : undefined)}
-        className="block w-full rounded-[16px] bg-accent py-3.5 text-center text-base font-semibold text-[#06231A]"
+        className="block w-full rounded-[var(--radius-lg)] bg-accent py-3.5 text-center text-base font-semibold text-accent-foreground shadow-[var(--shadow-accent-glow)]"
       >
         {variant ? HERO_VARIANTS.find((v) => v.key === variant)?.cta ?? "Faire mon scan gratuit" : "Faire mon scan gratuit"}
       </Link>
@@ -93,13 +102,20 @@ export default function Home() {
   }, []);
 
   return (
+    <SmoothScroll>
     <main className="flex flex-col">
       {/* Hero */}
-      <section id="hero" className="flex flex-col items-center px-5 pb-16 pt-20 sm:pt-28">
-        <h1 className="max-w-2xl text-center font-display text-[34px] font-semibold leading-[1.08] tracking-[-0.02em] text-text sm:text-[44px]">
+      <section id="hero" className="grain relative isolate flex flex-col items-center overflow-hidden px-5 pb-20 pt-20 sm:pb-24 sm:pt-28">
+        <div className="contour-bg" />
+        <DensityField className="-z-10 opacity-90 [mask-image:radial-gradient(85%_70%_at_50%_32%,black,transparent_80%)]" />
+        <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-xs font-medium text-text-muted">
+          <ScoreMark size={16} value={0.72} />
+          Analyse capillaire de bien-être, en une photo
+        </span>
+        <h1 className="w-full max-w-2xl text-balance text-center font-display t-hero font-semibold text-text">
           {hero.headline}
         </h1>
-        <p className="mx-auto mt-6 max-w-lg text-center text-base leading-relaxed text-text-muted">
+        <p className="mt-6 w-full max-w-lg text-pretty text-center text-base leading-relaxed text-text-muted">
           {hero.sub}
         </p>
         <div className="mt-10">
@@ -108,6 +124,10 @@ export default function Home() {
         <p className="mt-4 text-center text-xs text-text-faint">
           Gratuit · 30 secondes · Tes photos restent privées
         </p>
+
+        <div className="mt-16 w-full px-1 pb-6">
+          <HeroPreview />
+        </div>
       </section>
 
       {/* Bandeau de confiance */}
@@ -115,8 +135,8 @@ export default function Home() {
         <div className="mx-auto flex max-w-3xl flex-col items-center justify-center gap-4 sm:flex-row sm:gap-12">
           {[
             "Bien-être, pas un avis médical",
-            "Tes photos restent privées, hébergées en Europe",
-            "Gratuit pour commencer",
+            "Tes photos restent privées, en Europe",
+            "Gratuit, sans carte",
           ].map((item) => (
             <div key={item} className="flex items-center gap-2 text-sm text-text-muted">
               <svg className="h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -128,64 +148,70 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Technologie + conformité */}
+      <TrustBar />
+
+      {/* Stats produit */}
+      <StatsBand />
+
       {/* Comment ça marche */}
-      <section className="px-5 py-20">
+      <section id="comment" className="scroll-mt-20 px-5 py-20 sm:py-24">
         <div className="mx-auto max-w-3xl">
-          <h2 className="text-center font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
+          <Reveal as="h2" className="text-center font-display t-h2 text-balance font-semibold text-text">
             Comment ça marche
-          </h2>
+          </Reveal>
           <div className="mt-12 grid gap-8 sm:grid-cols-3">
             {[
               {
                 num: "1",
-                title: "Scanne.",
-                desc: "Prends ton cuir chevelu en photo. On t'en donne un score de densité, ton stade et tes zones fragiles.",
+                title: "Sache où tu en es.",
+                desc: "Une photo, et tu as ton score, ton stade et tes zones. Clair, en 30 secondes.",
               },
               {
                 num: "2",
-                title: "Visualise.",
-                desc: "Découvre un objectif visuel de ta densité retrouvée, sur ta propre photo.",
+                title: "Vois ton cap.",
+                desc: "Ton objectif sur ta propre photo, pour savoir où tu vas. Une simulation, pas une promesse.",
               },
               {
                 num: "3",
-                title: "Suis.",
-                desc: "Reçois un protocole sur 30 jours et re-scanne chaque mois pour voir ta progression.",
+                title: "Avance avec un plan.",
+                desc: "Un plan fait pour toi, et ta courbe qui bouge à chaque nouveau scan.",
               },
-            ].map((s) => (
-              <div key={s.num} className="text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-lg font-bold text-accent">
+            ].map((s, i) => (
+              <Reveal key={s.num} delay={i * 90} className="text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft font-data text-lg font-semibold text-accent ring-1 ring-inset ring-accent/20">
                   {s.num}
                 </div>
                 <h3 className="mt-4 text-[17px] font-semibold text-text">{s.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-text-muted">{s.desc}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
       {/* Demo du scan */}
-      <section className="border-y border-border bg-surface/50 px-5 py-20">
-        <div className="mx-auto max-w-xl text-center">
-          <h2 className="font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
-            Le scan qui te dit tout
+      <section className="border-y border-border bg-surface/40 px-5 py-20 sm:py-24">
+        <Reveal className="mx-auto max-w-xl text-center">
+          <h2 className="font-display t-h2 text-balance font-semibold text-text">
+            Le scan qui te montre où tu en es
           </h2>
-          <p className="mt-3 text-sm text-text-muted">
-            En une photo, l'analyse repère ta densité, tes zones dégarnies et
-            ton stade. Tu vois enfin clair, en quelques secondes.
+          <p className="mx-auto mt-3 max-w-md text-pretty text-sm text-text-muted">
+            En une photo, ton score, tes zones et ton stade. Une estimation claire,
+            en quelques secondes.
           </p>
           <div className="mt-10 flex justify-center">
             <Gauge score={72} label="Exemple de score" />
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* Bénéfices */}
-      <section className="px-5 py-20">
+      <section className="px-5 py-20 sm:py-24">
         <div className="mx-auto max-w-3xl">
-          <h2 className="text-center font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
+          <Reveal as="h2" className="text-center font-display t-h2 text-balance font-semibold text-text">
             Ce que tu y gagnes
-          </h2>
+          </Reveal>
           <div className="mt-12 grid gap-6 sm:grid-cols-2">
             {[
               {
@@ -194,73 +220,87 @@ export default function Home() {
               },
               {
                 title: "Tu vois un cap concret.",
-                desc: "Un objectif visuel sur ta propre photo, pour savoir vers quoi tu avances.",
+                desc: "L'aperçu de ton objectif sur ta propre photo, pour savoir où tu vas.",
               },
               {
                 title: "Tu avances avec un plan.",
-                desc: "Un protocole simple sur 30 jours, pensé pour ta situation.",
+                desc: "Un plan fait pour toi, sans recherche ni prise de tête.",
               },
               {
                 title: "Tu mesures tes progrès.",
                 desc: "Re-scanne chaque mois et regarde ta courbe évoluer.",
               },
-            ].map((b) => (
-              <div key={b.title} className="rounded-[16px] border border-border bg-surface p-5">
+            ].map((b, i) => (
+              <Reveal key={b.title} delay={(i % 2) * 90} className="group rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-card transition-all duration-[var(--dur)] ease-[var(--ease-out)] hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md">
                 <h3 className="text-[17px] font-semibold text-text">{b.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-text-muted">{b.desc}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
+      {/* Confidentialité et réassurance */}
+      <Reassurance />
+
       {/* Preuve sociale (slot honnête) */}
-      <section className="border-y border-border bg-surface/50 px-5 py-16">
-        <div className="mx-auto max-w-xl text-center">
-          <p className="text-sm text-text-muted">
-            Scalpy est en lancement. Rejoins les premiers utilisateurs et
-            découvre ton bilan.
+      <section className="border-y border-border bg-surface/40 px-5 py-16">
+        <Reveal className="mx-auto flex max-w-xl flex-col items-center gap-5 text-center">
+          {/* Compteur réel de scans (masqué tant qu'il n'y a pas de données). */}
+          <SocialProof />
+          <p className="text-pretty text-sm text-text-muted">
+            On ne te vend pas de miracle. On situe, on estime, on suit, et tu
+            décides. Si le plan ne te convient pas, tu es remboursé.
           </p>
-        </div>
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-medium text-text-muted">
+            <span>Satisfait ou remboursé</span>
+            <span>Photos privées, en Europe</span>
+            <span>Bien-être, pas un avis médical</span>
+          </div>
+        </Reveal>
       </section>
 
       {/* FAQ */}
-      <section className="px-5 py-20">
+      <section id="faq" className="scroll-mt-20 px-5 py-20 sm:py-24">
         <div className="mx-auto max-w-2xl">
-          <h2 className="text-center font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
+          <Reveal as="h2" className="text-center font-display t-h2 text-balance font-semibold text-text">
             Les questions que tu te poses
-          </h2>
+          </Reveal>
           <div className="mt-10 space-y-3">
             {[
               {
-                q: "C'est un diagnostic médical ?",
-                a: "Non. Scalpy est un outil de bien-être qui te donne une estimation indicative. Ce n'est pas un avis médical et ça ne remplace pas un professionnel de santé.",
+                q: "C'est un avis médical ?",
+                a: "Non. Scalpy situe ta densité, c'est une estimation de bien-être. Ce n'est pas un avis médical et ça ne remplace pas un professionnel de santé.",
               },
               {
-                q: "Mes photos sont-elles en sécurité ?",
-                a: "Oui. Elles sont stockées de façon privée, hébergées en Europe, et jamais partagées. Tu peux les supprimer quand tu veux.",
+                q: "Mes photos sont-elles privées ?",
+                a: "Oui. Elles restent privées, hébergées en Europe, jamais partagées. Tu peux les supprimer quand tu veux.",
               },
               {
-                q: "C'est vraiment gratuit ?",
-                a: "Le scan, ton score et un aperçu de ta projection sont gratuits. Le protocole complet et le suivi mensuel sont dans l'offre payante.",
+                q: "C'est gratuit ?",
+                a: "Le scan, ton score et l'aperçu de ton objectif sont gratuits, sans carte. Le plan complet et le suivi mensuel sont payants.",
               },
               {
-                q: "L'avant/après, c'est mon vrai résultat futur ?",
-                a: "Non. C'est une simulation, un objectif visuel de ce que pourrait donner une densité retrouvée. Ce n'est pas une prédiction ni une garantie.",
+                q: "L'avant/après, c'est mon résultat futur ?",
+                a: "Non. C'est une simulation, un objectif visuel. Ce n'est pas une prédiction ni une promesse.",
+              },
+              {
+                q: "Et si le plan ne me convient pas ?",
+                a: "Tu es remboursé, sans condition. Tu essaies, et si ce n'est pas pour toi, on te rend ton argent.",
               },
               {
                 q: "Ça prend combien de temps ?",
-                a: "Environ 30 secondes et une photo.",
+                a: "Une photo et 30 secondes.",
               },
               {
                 q: "C'est fait pour qui ?",
-                a: "Pour les hommes qui remarquent une perte et veulent comprendre où ils en sont et suivre leur évolution.",
+                a: "Pour les hommes qui remarquent une perte et veulent situer où ils en sont, puis suivre leur évolution.",
               },
             ].map((faq) => (
-              <details key={faq.q} className="group rounded-[16px] border border-border bg-surface">
-                <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-medium text-text">
+              <details key={faq.q} className="group rounded-[var(--radius-lg)] border border-border bg-surface shadow-card transition-colors duration-[var(--dur)] open:border-border-strong hover:border-border-strong">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-sm font-medium text-text [&::-webkit-details-marker]:hidden">
                   {faq.q}
-                  <span className="ml-4 shrink-0 text-text-faint transition-transform group-open:rotate-45">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border text-text-faint transition-transform duration-[var(--dur)] ease-[var(--ease-out)] group-open:rotate-45 group-open:border-accent group-open:text-accent">
                     +
                   </span>
                 </summary>
@@ -271,44 +311,13 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA final */}
-      <section className="px-5 py-24">
-        <div className="mx-auto max-w-lg text-center">
-          <h2 className="font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
-            Prêt à savoir où tu en es ?
-          </h2>
-          <p className="mt-4 text-text-muted">
-            Une photo, 30 secondes. Tu verras.
-          </p>
-          <div className="mt-8">
-            <CtaButton variant={hero.key} />
-          </div>
-        </div>
-      </section>
+      {/* CTA final, banniere degrade type Stripe */}
+      <GradientBanner />
 
-      {/* Footer */}
-      <footer className="border-t border-border px-5 py-8">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 sm:flex-row">
-          <p className="font-display text-sm font-semibold tracking-[-0.02em] text-text-faint">Scalpy</p>
-          <div className="flex flex-wrap justify-center gap-6 text-xs text-text-faint">
-            <Link href="/mentions-legales" className="transition-colors hover:text-text-muted">
-              Mentions légales
-            </Link>
-            <Link href="/confidentialite" className="transition-colors hover:text-text-muted">
-              Confidentialité
-            </Link>
-            <Link href="/cgu" className="transition-colors hover:text-text-muted">
-              CGU
-            </Link>
-            <a href="mailto:mathias.stephant@gmail.com" className="transition-colors hover:text-text-muted">
-              Contact
-            </a>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
 
-      <Disclaimer className="mx-auto mb-6 justify-center" />
       <StickyCtaBar variant={hero.key} />
     </main>
+    </SmoothScroll>
   );
 }

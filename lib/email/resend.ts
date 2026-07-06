@@ -8,24 +8,34 @@ interface SendEmailInput {
   html: string;
 }
 
-export async function sendEmail({ to, subject, html }: SendEmailInput) {
+export async function sendEmail({ to, subject, html }: SendEmailInput): Promise<boolean> {
   if (!RESEND_API_KEY) {
     console.warn("RESEND_API_KEY not set, skipping email");
-    return;
+    return false;
   }
 
-  await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ from: FROM, to, subject, html }),
-  });
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from: FROM, to, subject, html }),
+    });
+    if (!res.ok) {
+      console.error(`[Resend] Échec (${res.status}) pour ${to}: ${await res.text()}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(`[Resend] Erreur réseau pour ${to}:`, err);
+    return false;
+  }
 }
 
 function wrap(content: string): string {
-  return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0E0F12;color:#F2F3F5;padding:32px 20px;max-width:480px;margin:0 auto;"><div style="background:#16181D;border-radius:16px;padding:24px;">${content}</div><p style="color:#6B7178;font-size:12px;text-align:center;margin-top:20px;">Scalpy — Estimation de bien-être, pas un avis médical.<br/><a href="${APP_URL}/confidentialite" style="color:#9AA0A8;">Confidentialité</a> · <a href="${APP_URL}/api/unsubscribe" style="color:#9AA0A8;">Se désinscrire</a></p></body></html>`;
+  return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0E0F12;color:#F2F3F5;padding:32px 20px;max-width:480px;margin:0 auto;"><div style="background:#16181D;border-radius:16px;padding:24px;">${content}</div><p style="color:#6B7178;font-size:12px;text-align:center;margin-top:20px;">Scalpy · Estimation de bien-être, pas un avis médical.<br/><a href="${APP_URL}/confidentialite" style="color:#9AA0A8;">Confidentialité</a> · <a href="${APP_URL}/api/unsubscribe" style="color:#9AA0A8;">Se désinscrire</a></p></body></html>`;
 }
 
 function cta(label: string, href: string): string {
@@ -35,7 +45,7 @@ function cta(label: string, href: string): string {
 export function emailWelcome(): { subject: string; html: string } {
   return {
     subject: "Bienvenue sur Scalpy. Ton bilan t'attend.",
-    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Bienvenue sur Scalpy</h1><p style="color:#9AA0A8;">Tu viens de faire le premier pas. Ton bilan capillaire t'attend : un score de densité, tes zones fragiles, et un objectif visuel concret.</p><p style="color:#9AA0A8;">Tes photos restent privées, hébergées en Europe.</p>${cta("Faire mon scan", "/scan")}`),
+    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Bienvenue sur Scalpy</h1><p style="color:#9AA0A8;">Tu viens de faire le premier pas. En une photo et 30 secondes : ton score, tes zones, ton stade et l'aperçu de ton objectif. Gratuit, sans carte.</p><p style="color:#9AA0A8;">Tes photos restent privées, hébergées en Europe.</p>${cta("Faire mon scan gratuit", "/scan")}`),
   };
 }
 
@@ -48,8 +58,8 @@ export function emailScanAbandoned(): { subject: string; html: string } {
 
 export function emailPaywallAbandoned(objectif: string): { subject: string; html: string } {
   return {
-    subject: `Ton plan pour ${objectif} est prêt à être débloqué.`,
-    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Ton plan t'attend</h1><p style="color:#9AA0A8;">Ta projection complète, ton protocole 30 jours et ton suivi mensuel sont prêts. Débloque ton espace pour avancer.</p>${cta("Voir les offres", "/plus")}`),
+    subject: `Ton plan pour ${objectif} t'attend.`,
+    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Tu sais où tu vas. Voici comment y arriver.</h1><p style="color:#9AA0A8;">Ton objectif complet, ton plan sur 90 jours et ton suivi mensuel sont prêts.</p><p style="color:#9AA0A8;">Satisfait ou remboursé, sans condition : tu essaies, et si ce n'est pas pour toi, on te rembourse.</p>${cta("Démarrer mon plan", "/plus")}`),
   };
 }
 
@@ -61,7 +71,7 @@ export function emailProgramNudge(day: number): { subject: string; html: string 
   };
   return {
     subject: subjects[day] || `Jour ${day} de ton programme`,
-    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Ton programme avance</h1><p style="color:#9AA0A8;">Chaque petit geste compte. Sois régulier, les effets prennent du temps — et c'est la constance qui fait la différence.</p>${cta("Ouvrir mon plan", "/app")}`),
+    html: wrap(`<h1 style="font-size:22px;margin:0 0 12px;">Ton programme avance</h1><p style="color:#9AA0A8;">Chaque petit geste compte. Sois régulier, les effets prennent du temps, et c'est la constance qui fait la différence.</p>${cta("Ouvrir mon plan", "/app")}`),
   };
 }
 

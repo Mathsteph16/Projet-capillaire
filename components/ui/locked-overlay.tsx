@@ -17,9 +17,9 @@ function LockedOverlay({
   href,
 }: LockedOverlayProps) {
   return (
-    <div className="relative overflow-hidden rounded-[16px]">
-      <div className="select-none blur-[8px] pointer-events-none">{children}</div>
-      <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg/60 backdrop-blur-sm">
+    <div className="relative overflow-hidden rounded-[var(--radius-lg)] border border-border">
+      <div className="select-none blur-[10px] pointer-events-none">{children}</div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-ink/55 backdrop-blur-sm">
         <svg
           className="mb-3 h-8 w-8 text-text-muted"
           fill="none"

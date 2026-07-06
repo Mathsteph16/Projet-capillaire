@@ -11,6 +11,9 @@ import {
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
+  // Si un secret est configuré, on l'exige (protège l'envoi de masse). S'il n'est
+  // PAS configuré, on laisse passer (sinon on couperait les emails sur l'infra
+  // actuelle où le secret n'est pas posé). Poser CRON_SECRET active la protection.
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

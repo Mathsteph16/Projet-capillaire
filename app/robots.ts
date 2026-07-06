@@ -1,8 +1,10 @@
 import type { MetadataRoute } from "next";
 
+const BASE = process.env.NEXT_PUBLIC_APP_URL || "https://www.scalpy-app.com";
+
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: { userAgent: "*", allow: "/", disallow: ["/admin", "/api/"] },
-    sitemap: "https://projet-capillaire-production.up.railway.app/sitemap.xml",
+    rules: { userAgent: "*", allow: "/", disallow: ["/admin", "/api/", "/app", "/suivi", "/resultat"] },
+    sitemap: `${BASE}/sitemap.xml`,
   };
 }

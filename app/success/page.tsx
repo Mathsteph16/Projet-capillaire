@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Button, Card } from "@/components/ui";
+import { Button, Card, ScoreMark } from "@/components/ui";
 
 export default function Success() {
   const [status, setStatus] = useState<"checking" | "active" | "pending">("checking");
@@ -11,11 +11,14 @@ export default function Success() {
 
   useEffect(() => {
     let attempts = 0;
-    const maxAttempts = 20;
+    // Le webhook de paiement peut prendre 1-3 min en pic : on attend jusqu'a ~3 min
+    // (intervalle qui s'allonge un peu) avant d'afficher l'etat "presque pret".
+    const maxAttempts = 40;
 
     async function check() {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) { router.push("/auth"); return; }
 
       const { data } = await supabase
@@ -36,7 +39,7 @@ export default function Success() {
         return;
       }
 
-      setTimeout(check, 3000);
+      setTimeout(check, attempts < 10 ? 3000 : 5000);
     }
 
     check();
@@ -47,7 +50,7 @@ export default function Success() {
       <Card className="w-full max-w-md text-center space-y-4">
         {status === "checking" && (
           <>
-            <div className="mx-auto h-2 w-2 animate-pulse rounded-full bg-accent" />
+            <div className="flex justify-center"><ScoreMark size={40} spin value={0.7} /></div>
             <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">Activation en cours</h1>
             <p className="text-sm text-text-muted">
               On prépare ton espace. Ça ne prend que quelques secondes.
@@ -61,23 +64,28 @@ export default function Success() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             </div>
-            <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">C'est bon !</h1>
+            <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">C'est activé.</h1>
             <p className="text-sm text-text-muted">
-              Ton plan est activé. Redirection vers ton espace...
+              Ton plan est prêt. On t'emmène à ton espace.
             </p>
           </>
         )}
         {status === "pending" && (
           <>
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft">
+              <svg className="h-8 w-8 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+            </div>
             <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">
-              Presque prêt
+              Paiement confirmé ✓
             </h1>
             <p className="text-sm text-text-muted">
-              Le paiement est en cours de traitement. Ton accès sera activé
-              dans quelques minutes.
+              Merci ! Ton accès s'active tout seul, ça peut prendre 1 à 2 minutes.
+              Clique pour vérifier, pas besoin de payer à nouveau.
             </p>
-            <Button variant="primary" onClick={() => router.push("/app")}>
-              Aller à mon espace
+            <Button variant="primary" onClick={() => window.location.reload()}>
+              Vérifier mon accès
             </Button>
           </>
         )}

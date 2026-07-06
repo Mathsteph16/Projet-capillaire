@@ -1,75 +1,200 @@
 @import "tailwindcss";
 
+/* ============================================================
+   SCALPY — Design System
+   Direction artistique : instrument clinique sombre, émeraude rare.
+   Encre quasi noire, surfaces superposées, bordures filaires fines,
+   ombres basses et douces. Émeraude = signal, jamais décoration.
+   Aucun glassmorphism, aucun dégradé décoratif.
+   ============================================================ */
+
 :root {
-  --bg: #0E0F12;
-  --surface: #16181D;
-  --surface-2: #1E2128;
-  --border: #262A32;
-  --text: #F2F3F5;
-  --text-muted: #9AA0A8;
-  --text-faint: #6B7178;
-  --accent: #16B981;
-  --accent-hover: #13A574;
-  --accent-pressed: #0E9268;
-  --accent-light: #34D399;
-  --accent-soft: rgba(22, 185, 129, 0.12);
-  --signal: #F5A524;
-  --danger: #E5484D;
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.45);
-  --shadow-accent-glow: 0 0 0 1px rgba(22, 185, 129, 0.4), 0 8px 30px rgba(22, 185, 129, 0.15);
-  --ease-entrance: cubic-bezier(0.22, 1, 0.36, 1);
+  /* ---- Clinique CLAIR : near-white froid, surfaces blanches superposées ---- */
+  --bg: #F7F9FB;            /* fond near-white froid (jamais blanc pur) */
+  --surface: #FFFFFF;       /* cartes */
+  --surface-2: #EEF2F6;     /* pistes, hover, surfaces secondaires */
+  --surface-elevated: #FFFFFF;
+  --ink: #0B1220;           /* encre profonde pour overlays sur image */
+
+  /* ---- Bordures filaires claires ---- */
+  --border: #E3E9EF;
+  --border-strong: #CBD5E1;
+  --line: var(--border);
+
+  /* ---- Texte encre ---- */
+  --text: #0F1B2D;          /* encre profonde, légèrement froide */
+  --text-muted: #51607A;    /* secondaire (AA sur fond clair) */
+  --text-faint: #7C8AA0;    /* tertiaire */
+
+  /* ---- Émeraude (accent unique de marque, lisible sur clair) ---- */
+  --accent: #0C8F61;        /* émeraude profond, AA en texte sur blanc */
+  --accent-hover: #0A7C54;
+  --accent-pressed: #086A48;
+  --accent-light: #16B981;  /* émeraude vif de marque, pour petits accents */
+  --accent-foreground: #FFFFFF; /* texte/icône sur fond émeraude */
+  --accent-soft: rgba(16, 185, 129, 0.10);
+  --accent-ring: rgba(12, 143, 97, 0.35);
+
+  /* ---- Sémantique (désaturée pour le clair) ---- */
+  --success: var(--accent);
+  --signal: #B45309;
+  --warning: var(--signal);
+  --danger: #DC2626;
+
+  /* ---- Rayons (échelle cohérente) ---- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-full: 999px;
+
+  /* ---- Ombres basses et douces (theme clair, opacite 0.04 a 0.08) ---- */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-card:
+    0 1px 3px rgba(15, 23, 42, 0.06),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md:
+    0 4px 12px rgba(15, 23, 42, 0.07),
+    0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-pop:
+    0 12px 32px rgba(15, 23, 42, 0.10),
+    0 4px 8px rgba(15, 23, 42, 0.05);
+  /* anneau émeraude discret pour le SEUL accent par écran (paywall, plan recommandé) */
+  --shadow-accent-glow:
+    0 0 0 1px rgba(12, 143, 97, 0.30),
+    0 10px 28px rgba(12, 143, 97, 0.12);
+
+  /* ---- Mouvement : courbes sur mesure, jamais linéaire ---- */
+  --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 150ms;
+  --dur: 220ms;
+  --dur-slow: 400ms;
+  --dur-slower: 600ms;
+
+  /* ---- Type fluide (clamp) ---- */
+  --t-hero: clamp(1.7rem, 0.9rem + 3.4vw, 3.25rem);
+  --t-h1: clamp(1.625rem, 1.2rem + 2vw, 2.25rem);
+  --t-h2: clamp(1.375rem, 1.15rem + 1.1vw, 1.75rem);
+  --t-h3: clamp(1.0625rem, 1rem + 0.3vw, 1.1875rem);
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-ink: var(--ink);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-line: var(--line);
   --color-text: var(--text);
   --color-text-muted: var(--text-muted);
   --color-text-faint: var(--text-faint);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
-  --color-accent-soft: var(--accent-soft);
   --color-accent-pressed: var(--accent-pressed);
   --color-accent-light: var(--accent-light);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
   --color-signal: var(--signal);
+  --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-foreground: var(--text);
   --color-background: var(--bg);
   --color-muted: var(--text-muted);
+
   --font-sans: "var(--font-inter)", ui-sans-serif, system-ui, sans-serif;
   --font-display: "var(--font-display)", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-data: "var(--font-mono)", "JetBrains Mono", ui-monospace, monospace;
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+
+  --shadow-xs: var(--shadow-xs);
   --shadow-card: var(--shadow-card);
+  --shadow-md: var(--shadow-md);
   --shadow-pop: var(--shadow-pop);
   --shadow-accent-glow: var(--shadow-accent-glow);
+
+  --ease-entrance: var(--ease-entrance);
+  --ease-out: var(--ease-out);
 }
+
+/* ============================================================
+   Base + détails premium
+   ============================================================ */
 
 html {
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
+
+html, body { max-width: 100%; overflow-x: hidden; }
+* { min-width: 0; }
 
 body {
   background: var(--bg);
   color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-synthesis: none;
 }
 
-::selection {
-  background: rgba(22, 185, 129, 0.25);
-  color: var(--text);
+img, video, svg { max-width: 100%; }
+
+/* Sensation "app native" sur mobile */
+button, a, [role="button"], [role="radio"], [role="slider"] { touch-action: manipulation; }
+body { overscroll-behavior-y: none; }
+
+/* Transitions de vue entre pages (progressive enhancement, app-like) */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation-duration: var(--dur); }
+::view-transition-new(root) { animation-duration: var(--dur); }
+
+/* Chiffres tabulaires sur la police data (scores, stats, prix, mesures) */
+.font-data {
+  font-feature-settings: "tnum" 1, "zero" 1;
+  font-variant-numeric: tabular-nums;
 }
 
+/* Titres d'affichage : tracking serré (sensation Space Grotesk premium) */
+.font-display { letter-spacing: -0.02em; }
+
+/* Type fluide */
+.t-hero { font-size: var(--t-hero); line-height: 1.05; letter-spacing: -0.03em; }
+.t-h1 { font-size: var(--t-h1); line-height: 1.1; letter-spacing: -0.02em; }
+.t-h2 { font-size: var(--t-h2); line-height: 1.15; letter-spacing: -0.02em; }
+.t-h3 { font-size: var(--t-h3); line-height: 1.3; letter-spacing: -0.01em; }
+
+/* Scrollbar minimale sur mesure */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: #424857; }
+
+::selection { background: var(--accent-soft); color: var(--text); }
+::-moz-selection { background: var(--accent-soft); color: var(--text); }
+
+:focus { outline: none; }
 :focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-button:focus-visible,
-a:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 input:-webkit-autofill,
@@ -80,42 +205,52 @@ input:-webkit-autofill:focus {
   transition: background-color 5000s ease-in-out 0s;
 }
 
-/* Animations */
+/* ============================================================
+   Texture signature : courbes de niveau (carte de densité)
+   Fil rouge discret, opacité très faible. Plus grain de chaleur.
+   ============================================================ */
+
+/* Courbes de niveau, en texture de fond très subtile */
+.contour-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600' viewBox='0 0 600 600'%3E%3Cg fill='none' stroke='%2316B981' stroke-opacity='0.05' stroke-width='1'%3E%3Cpath d='M-50 120 C 120 60 300 180 480 110 S 700 60 760 140'/%3E%3Cpath d='M-50 200 C 130 150 300 250 470 190 S 700 150 760 220'/%3E%3Cpath d='M-50 290 C 120 240 320 330 480 270 S 700 240 760 300'/%3E%3Cpath d='M-50 380 C 140 330 300 420 470 360 S 700 330 760 400'/%3E%3Cpath d='M-50 470 C 120 420 320 510 480 450 S 700 420 760 490'/%3E%3Cpath d='M-50 560 C 140 510 300 600 470 540 S 700 510 760 580'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 600px 600px;
+}
+
+/* Grain de bruit quasi invisible (chaleur, l'inverse du glassmorphism) */
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes slide-left {
   from { opacity: 0; transform: translateX(24px); }
   to { opacity: 1; transform: translateX(0); }
 }
-
 @keyframes slide-right {
   from { opacity: 0; transform: translateX(-24px); }
   to { opacity: 1; transform: translateX(0); }
 }
-
-@keyframes gauge-fill {
-  from { stroke-dashoffset: var(--gauge-circumference); }
-  to { stroke-dashoffset: var(--gauge-offset); }
-}
-
-@keyframes progress-fill {
-  from { width: 0%; }
-  to { width: var(--progress-width); }
-}
-
-@keyframes blur-in {
-  from { backdrop-filter: blur(0px); opacity: 0; }
-  to { backdrop-filter: blur(12px); opacity: 1; }
-}
-
 @keyframes scan-sweep {
   0% { top: -4px; opacity: 0; }
   5% { opacity: 1; }
@@ -123,53 +258,52 @@ input:-webkit-autofill:focus {
   100% { top: 100%; opacity: 0; }
 }
 
-@keyframes count-up {
-  from { opacity: 0; transform: scale(0.5); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.25s var(--ease-entrance);
-}
-
-.animate-fade-in-up {
-  animation: fade-in-up 0.25s var(--ease-entrance);
-}
-
-.animate-slide-left {
-  animation: slide-left 0.25s var(--ease-entrance);
-}
-
-.animate-slide-right {
-  animation: slide-right 0.25s var(--ease-entrance);
-}
-
-.animate-count-up {
-  animation: count-up 0.6s var(--ease-entrance);
-}
+.animate-fade-in { animation: fade-in var(--dur) var(--ease-entrance); }
+.animate-fade-in-up { animation: fade-in-up var(--dur) var(--ease-entrance); }
+.animate-slide-left { animation: slide-left var(--dur) var(--ease-entrance); }
+.animate-slide-right { animation: slide-right var(--dur) var(--ease-entrance); }
 
 .scan-line {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--accent) 20%,
-    var(--accent) 80%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 20%, var(--accent) 80%, transparent 100%);
   animation: scan-sweep 2.8s ease-in-out infinite;
 }
 
+/* Squelettes de chargement (plutôt que spinners) */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 37%, var(--surface) 63%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+/* Scroll reveal (IntersectionObserver, sans dépendance) */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity var(--dur-slow) var(--ease-entrance),
+    transform var(--dur-slow) var(--ease-entrance);
+  will-change: opacity, transform;
+}
+[data-reveal].is-visible { opacity: 1; transform: none; }
+
+/* ============================================================
+   Mode dégradé : reduced-motion coupe tout proprement
+   ============================================================ */
 @media (prefers-reduced-motion: reduce) {
-  .animate-fade-in,
-  .animate-fade-in-up,
-  .animate-slide-left,
-  .animate-slide-right,
-  .animate-count-up {
-    animation: none;
-  }
-  .scan-line {
-    animation: none;
-    opacity: 0.5;
-    top: 50%;
+  html { scroll-behavior: auto; }
+  .animate-fade-in, .animate-fade-in-up, .animate-slide-left, .animate-slide-right { animation: none; }
+  .scan-line { animation: none; opacity: 0.5; top: 50%; }
+  .skeleton { animation: none; }
+  .grain::after { display: none; }
+  [data-reveal] { opacity: 1; transform: none; transition: none; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }
