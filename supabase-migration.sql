@@ -68,9 +68,28 @@ create table if not exists public.subscriptions (
   provider_customer_id text,
   provider_subscription_id text,
   current_period_end timestamptz,
+  cancel_at_period_end boolean not null default false,
+  customer_email text,
+  variant_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Colonnes ajoutées après création initiale (idempotent)
+do $$ begin
+  if not exists (select 1 from information_schema.columns where table_name = 'subscriptions' and column_name = 'cancel_at_period_end') then
+    alter table public.subscriptions add column cancel_at_period_end boolean not null default false;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'subscriptions' and column_name = 'customer_email') then
+    alter table public.subscriptions add column customer_email text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'subscriptions' and column_name = 'variant_id') then
+    alter table public.subscriptions add column variant_id text;
+  end if;
+end $$;
+
+create index if not exists subscriptions_user_id_idx on public.subscriptions(user_id);
+create index if not exists subscriptions_provider_sub_id_idx on public.subscriptions(provider_subscription_id);
 
 -- 6. Table events (mise à jour si existante)
 do $$ begin

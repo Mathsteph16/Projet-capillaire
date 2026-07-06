@@ -32,13 +32,32 @@ export default function AuthForm({
   onSuccess,
   redirectTo = "/scan",
 }: AuthFormProps) {
-  const [mode, setMode] = useState(initialMode);
+  const [mode, setMode] = useState<"login" | "signup" | "forgot">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
+
+  async function handleForgot(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setMessage("");
+    setIsSuccess(false);
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${location.origin}/auth/reset`,
+    });
+    if (error) {
+      setMessage(humanError(error.message));
+    } else {
+      setIsSuccess(true);
+      setMessage("Un lien de réinitialisation a été envoyé à ton adresse mail.");
+    }
+    setLoading(false);
+  }
 
   async function handleGoogle() {
     const supabase = createClient();
@@ -94,6 +113,43 @@ export default function AuthForm({
     setLoading(false);
   }
 
+  if (mode === "forgot") {
+    return (
+      <div className="w-full space-y-5">
+        <div>
+          <h2 className="font-display text-[22px] font-semibold text-text">Mot de passe oublié</h2>
+          <p className="mt-1 text-sm text-text-muted">
+            Saisis ton email et on t'envoie un lien pour réinitialiser ton mot de passe.
+          </p>
+        </div>
+        <form onSubmit={handleForgot} className="space-y-3">
+          <Input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <Button type="submit" variant="primary" size="lg" loading={loading}>
+            Envoyer le lien
+          </Button>
+          {message && (
+            <p className={`text-sm ${isSuccess ? "text-accent" : "text-signal"}`}>
+              {message}
+            </p>
+          )}
+        </form>
+        <button
+          type="button"
+          onClick={() => { setMode("login"); setMessage(""); }}
+          className="text-sm text-text-muted hover:text-text transition-colors"
+        >
+          ← Retour à la connexion
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full space-y-5">
       <button
@@ -136,14 +192,47 @@ export default function AuthForm({
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        <Input
-          type="password"
-          placeholder={mode === "signup" ? "Mot de passe (min. 6 caractères)" : "Mot de passe"}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={6}
-        />
+        <div className="relative">
+          <Input
+            type={showPassword ? "text" : "password"}
+            placeholder={mode === "signup" ? "Mot de passe (min. 6 caractères)" : "Mot de passe"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+            className="pr-11"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-text transition-colors"
+            aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+          >
+            {showPassword ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            )}
+          </button>
+        </div>
+        {mode === "login" && (
+          <div className="text-right">
+            <button
+              type="button"
+              onClick={() => { setMode("forgot"); setMessage(""); }}
+              className="text-xs text-text-faint hover:text-text transition-colors"
+            >
+              Mot de passe oublié ?
+            </button>
+          </div>
+        )}
         <Button type="submit" variant="primary" size="lg" loading={loading}>
           {mode === "login" ? "Se connecter" : "Créer mon compte"}
         </Button>
