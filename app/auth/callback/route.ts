@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || origin;
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/scan";
 
@@ -42,9 +43,9 @@ export async function GET(request: NextRequest) {
           .is("user_id", null);
       }
 
-      return NextResponse.redirect(new URL(next, origin));
+      return NextResponse.redirect(new URL(next, siteUrl));
     }
   }
 
-  return NextResponse.redirect(new URL("/auth", origin));
+  return NextResponse.redirect(new URL("/auth", siteUrl));
 }

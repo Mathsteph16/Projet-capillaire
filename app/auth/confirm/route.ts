@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
+  const { searchParams, origin } = new URL(request.url);
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || origin;
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type");
 
@@ -39,9 +40,9 @@ export async function GET(request: NextRequest) {
         } catch {}
       }
 
-      return NextResponse.redirect(new URL("/scan", request.url));
+      return NextResponse.redirect(new URL("/scan", siteUrl));
     }
   }
 
-  return NextResponse.redirect(new URL("/auth", request.url));
+  return NextResponse.redirect(new URL("/auth", siteUrl));
 }
