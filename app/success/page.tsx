@@ -21,13 +21,16 @@ export default function Success() {
       const user = session?.user;
       if (!user) { router.push("/auth"); return; }
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("subscriptions")
         .select("status")
         .eq("user_id", user.id)
         .single();
 
+      console.log(`[ACTIVATION] poll #${attempts + 1} userId=${user.id} status=${data?.status ?? "null"} error=${error?.message ?? "none"}`);
+
       if (data?.status === "active") {
+        console.log("[ACTIVATION] ✅ status=active → redirection /app");
         setStatus("active");
         setTimeout(() => router.push("/app"), 2000);
         return;
@@ -35,6 +38,7 @@ export default function Success() {
 
       attempts++;
       if (attempts >= maxAttempts) {
+        console.log("[ACTIVATION] timeout atteint → affichage état pending");
         setStatus("pending");
         return;
       }
