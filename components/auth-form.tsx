@@ -139,7 +139,7 @@ export default function AuthForm({
           if (onSuccess) {
             onSuccess();
           } else {
-            window.location.assign(redirectTo);
+            window.location.assign(data.redirectTo || redirectTo);
           }
         }
       }

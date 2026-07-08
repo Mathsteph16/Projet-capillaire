@@ -2,21 +2,20 @@ import { type NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getRedirectAfterLogin } from "@/lib/routing";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || origin;
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/scan";
+  const explicitNext = searchParams.get("next");
 
-  console.log(`[AUTH] callback code=${code ? "présent" : "absent"} next=${next} siteUrl=${siteUrl}`);
+  console.log(`[AUTH] callback code=${code ? "présent" : "absent"} next=${explicitNext ?? "absent"} siteUrl=${siteUrl}`);
 
   if (code) {
-    // On crée le redirect EN PREMIER et on y pose les cookies directement.
-    // L'approche précédente (cookies() de next/headers + NextResponse séparé)
-    // ne garantissait pas que les Set-Cookie headers arrivent au navigateur.
-    const redirectUrl = new URL(next, siteUrl);
-    const response = NextResponse.redirect(redirectUrl);
+    // Collecter les cookies en tableau avant de créer le redirect,
+    // car on doit connaître l'userId pour choisir la destination.
+    const sessionCookies: Array<{ name: string; value: string; options: Record<string, unknown> }> = [];
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,10 +24,8 @@ export async function GET(request: NextRequest) {
         cookies: {
           getAll: () => request.cookies.getAll(),
           setAll: (cookiesToSet) => {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              request.cookies.set(name, value);
-              response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2]);
-            });
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+            cookiesToSet.forEach((c) => sessionCookies.push(c as typeof sessionCookies[0]));
           },
         },
       }
@@ -38,6 +35,21 @@ export async function GET(request: NextRequest) {
     console.log(`[AUTH] exchangeCodeForSession → ${error ? `error: ${error.message}` : `user=${data.user?.id}`}`);
 
     if (!error && data.user) {
+      // Si ?next est explicite et différent du défaut "/scan", on le respecte
+      // (l'utilisateur voulait accéder à une page précise avant d'être renvoyé
+      // vers /auth). Sinon, routing intelligent selon l'état de l'utilisateur.
+      const next =
+        explicitNext && explicitNext !== "/scan"
+          ? explicitNext
+          : await getRedirectAfterLogin(data.user.id);
+
+      const redirectUrl = new URL(next, siteUrl);
+      const response = NextResponse.redirect(redirectUrl);
+
+      sessionCookies.forEach(({ name, value, options }) => {
+        response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2]);
+      });
+
       const createdAt = new Date(data.user.created_at);
       const isNew = Date.now() - createdAt.getTime() < 60_000;
       if (isNew) {
@@ -46,7 +58,6 @@ export async function GET(request: NextRequest) {
           name: "inscription",
           props: { provider: "google" },
         });
-
         try {
           const { sendEmail, emailWelcome } = await import("@/lib/email/resend");
           if (data.user.email) {
@@ -55,7 +66,6 @@ export async function GET(request: NextRequest) {
         } catch {}
       }
 
-      // Link onboarding responses to user via session cookie
       const cookieStore = await cookies();
       const sessionId = cookieStore.get("scalpy_sid")?.value;
       if (sessionId) {

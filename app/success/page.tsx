@@ -17,8 +17,7 @@ export default function Success() {
 
     async function check() {
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user;
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push("/auth"); return; }
 
       const { data, error } = await supabase
@@ -30,9 +29,9 @@ export default function Success() {
       console.log(`[ACTIVATION] poll #${attempts + 1} userId=${user.id} status=${data?.status ?? "null"} error=${error?.message ?? "none"}`);
 
       if (data?.status === "active") {
-        console.log("[ACTIVATION] ✅ status=active → redirection /app");
+        console.log("[ACTIVATION] ✅ status=active → redirection /suivi");
         setStatus("active");
-        setTimeout(() => router.push("/app"), 2000);
+        setTimeout(() => router.push("/suivi"), 2000);
         return;
       }
 
