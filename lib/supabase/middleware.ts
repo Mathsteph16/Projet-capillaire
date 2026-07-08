@@ -29,20 +29,24 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
+  console.log(`[AUTH-MW] path=${path} user=${user?.id ?? "null"}${authError ? ` err=${authError.message}` : ""}`);
 
   if (!user && PROTECTED.some((p) => path.startsWith(p))) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth";
     url.searchParams.set("next", path);
+    console.log(`[AUTH-MW] → redirect /auth (non authentifié)`);
     return NextResponse.redirect(url);
   }
 
   if (user && path === "/auth") {
     const url = request.nextUrl.clone();
     url.pathname = "/scan";
+    console.log(`[AUTH-MW] → redirect /scan (déjà connecté)`);
     return NextResponse.redirect(url);
   }
 

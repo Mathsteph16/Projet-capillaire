@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
 import { compressImage } from "@/lib/compress-image";
 import { APP_VERSION } from "@/lib/version";
@@ -51,12 +50,11 @@ export default function Scan() {
   const analysisDone = useRef(false);
 
   useEffect(() => {
-    const supabase = createClient();
     trackEvent("scan_page_loaded", { build: BUILD });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session?.user) router.push("/auth?next=/scan");
-    });
-  }, [router]);
+    // La protection auth est assurée côté serveur par le proxy (proxy.ts).
+    // Ne PAS appeler getSession() ici : si les cookies n'étaient pas encore lus
+    // par le client Supabase, cela créait une boucle /scan → /auth → /scan.
+  }, []);
 
   const handleAllCaptured = useCallback((capturedPhotos: string[], capturedMasks: string[]) => {
     setPhotos(capturedPhotos);

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET(request: NextRequest) {
@@ -10,11 +10,30 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type");
 
   if (token_hash && type) {
-    const supabase = await createClient();
+    const redirectUrl = new URL("/scan", siteUrl);
+    const response = NextResponse.redirect(redirectUrl);
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => request.cookies.getAll(),
+          setAll: (cookiesToSet) => {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              request.cookies.set(name, value);
+              response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2]);
+            });
+          },
+        },
+      }
+    );
+
     const { error } = await supabase.auth.verifyOtp({
       type: type as "signup" | "email",
       token_hash,
     });
+
     if (!error) {
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -40,7 +59,7 @@ export async function GET(request: NextRequest) {
         } catch {}
       }
 
-      return NextResponse.redirect(new URL("/scan", siteUrl));
+      return response;
     }
   }
 

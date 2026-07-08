@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 
 // Création de compte SANS confirmation d'email (zéro friction) : on crée
 // l'utilisateur côté serveur avec email_confirm forcé, il peut se connecter
@@ -53,19 +53,36 @@ export async function POST(req: Request) {
     }
 
     // Connexion CÔTÉ SERVEUR : pose directement le cookie de session dans la
-    // réponse. Le navigateur n'a plus besoin d'appeler signInWithPassword (qui
-    // traînait ~8s à cause d'un verrou interne). L'inscription devient quasi
-    // instantanée. Si ça échoue, le client refera la connexion (filet).
+    // réponse. On collecte les cookies puis on les pose sur le NextResponse final
+    // pour garantir qu'ils arrivent au navigateur (même fix que /api/login).
     let signedIn = false;
+    const sessionCookies: Array<{ name: string; value: string; options: Record<string, unknown> }> = [];
+
     try {
-      const supabase = await createClient();
+      const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            getAll: () => [],
+            setAll: (cookiesToSet) => {
+              cookiesToSet.forEach((c) => sessionCookies.push(c as typeof sessionCookies[0]));
+            },
+          },
+        }
+      );
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       signedIn = !signInError;
+      console.log(`[AUTH] signup signIn email=${email} → ${signInError ? `error: ${signInError.message}` : "ok"}`);
     } catch (e) {
       console.error("[signup] Connexion serveur échouée (le client réessaiera):", e);
     }
 
-    return NextResponse.json({ ok: true, signedIn });
+    const response = NextResponse.json({ ok: true, signedIn });
+    sessionCookies.forEach(({ name, value, options }) => {
+      response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2]);
+    });
+    return response;
   } catch {
     return NextResponse.json({ error: "Une erreur est survenue." }, { status: 500 });
   }
